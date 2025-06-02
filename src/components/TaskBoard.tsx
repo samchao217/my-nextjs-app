@@ -9,18 +9,33 @@ import { ExportButton } from './ExportButton';
 import { useTaskStore } from '@/store/taskStore';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { 
   ClipboardList, 
   Clock, 
   CheckCircle, 
   AlertTriangle,
-  TrendingUp
+  TrendingUp,
+  RefreshCw,
+  Database
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 export function TaskBoard() {
-  const { filteredTasks, isLoading, lastSync, getUpcomingDeadlineTasks } = useTaskStore();
+  const { filteredTasks, isLoading, lastSync, getUpcomingDeadlineTasks, resetToInitialData } = useTaskStore();
   const [isHydrated, setIsHydrated] = useState(false);
 
   // 等待客户端水合完成
@@ -71,7 +86,15 @@ export function TaskBoard() {
       {/* 页面标题和统计 */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">苏琪针织-打样管理系统</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight">苏琪针织-打样管理系统</h1>
+            {isHydrated && (
+              <Badge variant="outline" className="text-xs bg-green-50 border-green-200 text-green-700">
+                <Database className="h-3 w-3 mr-1" />
+                已保存
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground">
             管理和跟踪所有袜子打样制作任务的进度
             {isHydrated && lastSync && (
@@ -179,6 +202,49 @@ export function TaskBoard() {
           <TaskFilters />
         </div>
         <div className="flex items-center gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="text-xs gap-1"
+              >
+                <Database className="h-3 w-3" />
+                数据管理
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5" />
+                  数据管理
+                </AlertDialogTitle>
+                <AlertDialogDescription className="space-y-2">
+                  <p>您可以重置所有数据到初始状态。</p>
+                  <div className="text-sm text-muted-foreground bg-muted p-3 rounded">
+                    <p className="font-medium mb-1">当前数据状态：</p>
+                    <p>• 任务总数：{stats.total}</p>
+                    <p>• 最后更新：{isHydrated && lastSync ? format(new Date(lastSync), 'yyyy-MM-dd HH:mm:ss', { locale: zhCN }) : '暂无'}</p>
+                  </div>
+                  <p className="text-amber-600 font-medium">⚠️ 注意：重置操作将清除所有当前数据，包括您添加或修改的任务！</p>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={() => {
+                    resetToInitialData();
+                    toast.success('数据已重置为初始状态', {
+                      description: '系统已恢复到默认的示例数据'
+                    });
+                  }}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  确认重置
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <ExportButton tasks={tasks} variant="batch" />
           <CreateTaskDialog />
         </div>

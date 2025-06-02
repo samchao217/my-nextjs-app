@@ -88,13 +88,21 @@ const mockTasks: Task[] = createTestTasks();
 export const useTaskStore = create<TaskStore>()(
   persist(
     (set, get) => ({
-      tasks: mockTasks,
+      // 初始化时不设置默认数据，由 persist 中间件处理
+      tasks: [],
       filter: {},
       isLoading: false,
       lastSync: null,
       warningDays: 3, // 默认3天预警
 
       setTasks: (tasks) => set({ tasks }),
+      
+      resetToInitialData: () => {
+        set({ 
+          tasks: createTestTasks(),
+          lastSync: new Date().toISOString()
+        });
+      },
       
       setWarningDays: (days) => set({ warningDays: days }),
       
@@ -345,11 +353,23 @@ export const useTaskStore = create<TaskStore>()(
     }),
     {
       name: 'task-store',
+      version: 1, // 添加版本号，便于将来数据迁移
+      // 持久化配置
       partialize: (state) => ({
         tasks: state.tasks,
         lastSync: state.lastSync,
         warningDays: state.warningDays,
       }),
+      // 数据恢复时的处理
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          // 如果本地没有数据，则使用测试数据
+          if (!state.tasks || state.tasks.length === 0) {
+            state.tasks = createTestTasks();
+            state.lastSync = new Date().toISOString();
+          }
+        }
+      },
     }
   )
 ); 

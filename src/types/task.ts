@@ -57,4 +57,7 @@ export interface TaskStore {
   // Computed
   filteredTasks: () => Task[];
   getUpcomingDeadlineTasks: () => Task[]; // 获取即将超期的任务
+  
+  // 数据管理
+  resetToInitialData: () => void; // 添加重置数据方法
 } 
