@@ -91,6 +91,8 @@ export const saveTasksToSupabase = async (tasks: any[]) => {
   if (!supabase) return false;
 
   try {
+    console.log('💾 正在保存数据到Supabase，任务数量:', tasks.length);
+    
     // 获取当前所有任务
     const { data: existingTasks } = await supabase.from('tasks').select('id');
     const existingIds = existingTasks?.map(t => t.id) || [];
@@ -115,11 +117,13 @@ export const saveTasksToSupabase = async (tasks: any[]) => {
     
     if (idsToDelete.length > 0) {
       await supabase.from('tasks').delete().in('id', idsToDelete);
+      console.log('🗑️ 删除了', idsToDelete.length, '个任务');
     }
 
+    console.log('✅ 数据保存成功');
     return true;
   } catch (error) {
-    console.error('保存到Supabase失败:', error);
+    console.error('❌ 保存到Supabase失败:', error);
     return false;
   }
 };
@@ -148,6 +152,8 @@ export const subscribeToTaskChanges = (callback: (tasks: any[]) => void) => {
   const supabase = getSupabaseClient();
   if (!supabase) return null;
 
+  console.log('🔄 正在启动实时订阅...');
+
   const subscription = supabase
     .channel('tasks_changes')
     .on(
@@ -157,15 +163,24 @@ export const subscribeToTaskChanges = (callback: (tasks: any[]) => void) => {
         schema: 'public',
         table: 'tasks'
       },
-      async () => {
+      async (payload) => {
+        console.log('📡 收到实时更新:', payload);
         // 当数据发生变化时，重新加载所有任务
         const tasks = await loadTasksFromSupabase();
         if (tasks) {
+          console.log('✅ 数据已更新，任务数量:', tasks.length);
           callback(tasks);
         }
       }
     )
-    .subscribe();
+    .subscribe((status) => {
+      console.log('📊 订阅状态:', status);
+      if (status === 'SUBSCRIBED') {
+        console.log('🎉 实时订阅已成功启动！');
+      } else if (status === 'CHANNEL_ERROR') {
+        console.error('❌ 实时订阅失败，请检查Supabase配置');
+      }
+    });
 
   return subscription;
 };

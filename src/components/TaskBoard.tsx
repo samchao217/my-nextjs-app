@@ -6,6 +6,7 @@ import { TaskFilters } from './TaskFilters';
 import { CreateTaskDialog } from './CreateTaskDialog';
 import { WarningSettings } from './WarningSettings';
 import { DatabaseConfig } from './DatabaseConfig';
+import { DataDebugger } from './DataDebugger';
 import { ExportButton } from './ExportButton';
 import { useTaskStore } from '@/store/taskStore';
 import { Badge } from '@/components/ui/badge';
@@ -34,15 +35,36 @@ import {
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { getSupabaseConfig } from '@/lib/supabaseClient';
 
 export function TaskBoard() {
-  const { filteredTasks, isLoading, lastSync, getUpcomingDeadlineTasks, resetToInitialData } = useTaskStore();
+  const { 
+    filteredTasks, 
+    isLoading, 
+    lastSync, 
+    getUpcomingDeadlineTasks, 
+    resetToInitialData,
+    loadFromDatabase,
+    enableRealtimeSync
+  } = useTaskStore();
   const [isHydrated, setIsHydrated] = useState(false);
 
   // 等待客户端水合完成
   useEffect(() => {
     setIsHydrated(true);
-  }, []);
+    
+    // 页面加载时检查是否需要从数据库加载数据
+    const checkAndLoadData = async () => {
+      const config = getSupabaseConfig();
+      if (config.url && config.key) {
+        console.log('🔄 检测到Supabase配置，正在加载云端数据...');
+        await loadFromDatabase();
+        enableRealtimeSync();
+      }
+    };
+    
+    checkAndLoadData();
+  }, [loadFromDatabase, enableRealtimeSync]);
   
   const tasks = isHydrated ? filteredTasks() : [];
   const upcomingTasks = isHydrated ? getUpcomingDeadlineTasks() : [];
@@ -249,6 +271,7 @@ export function TaskBoard() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          <DataDebugger />
           <ExportButton tasks={tasks} variant="batch" />
           <CreateTaskDialog />
         </div>

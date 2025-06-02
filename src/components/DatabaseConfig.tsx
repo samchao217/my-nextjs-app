@@ -33,7 +33,8 @@ import {
   Settings, 
   CheckCircle,
   AlertTriangle,
-  ExternalLink
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { 
@@ -295,6 +296,25 @@ export function DatabaseConfig({ onStorageTypeChange }: DatabaseConfigProps) {
               </div>
             </DialogContent>
           </Dialog>
+
+          {isConnected && (
+            <Button
+              variant="outline" 
+              size="sm"
+              onClick={async () => {
+                try {
+                  await loadFromDatabase();
+                  toast.success('数据已从云端重新加载');
+                } catch (error) {
+                  toast.error('数据加载失败，请检查网络连接');
+                }
+              }}
+              className="flex items-center gap-1"
+            >
+              <RefreshCw className="h-3 w-3" />
+              重新加载
+            </Button>
+          )}
 
           {!useOnlineDb && (
             <div className="text-xs text-amber-600 flex items-center gap-1">
