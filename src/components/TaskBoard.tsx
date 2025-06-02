@@ -5,6 +5,7 @@ import { TaskList } from './TaskList';
 import { TaskFilters } from './TaskFilters';
 import { CreateTaskDialog } from './CreateTaskDialog';
 import { WarningSettings } from './WarningSettings';
+import { DatabaseConfig } from './DatabaseConfig';
 import { ExportButton } from './ExportButton';
 import { useTaskStore } from '@/store/taskStore';
 import { Badge } from '@/components/ui/badge';
@@ -140,6 +141,9 @@ export function TaskBoard() {
 
       {/* 预警设置 */}
       <WarningSettings />
+
+      {/* 数据存储设置 */}
+      <DatabaseConfig />
 
       {/* 重要指标统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
