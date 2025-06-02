@@ -463,10 +463,39 @@ export const useTaskStore = create<TaskStore>()(
       // 数据恢复时的处理
       onRehydrateStorage: () => (state) => {
         if (state) {
-          // 如果本地没有数据，则使用测试数据
-          if (!state.tasks || state.tasks.length === 0) {
-            state.tasks = createTestTasks();
-            state.lastSync = new Date().toISOString();
+          // 如果没有配置Supabase，使用测试数据
+          if (!isSupabaseConfigured()) {
+            if (!state.tasks || state.tasks.length === 0) {
+              state.tasks = createTestTasks();
+              state.lastSync = new Date().toISOString();
+            }
+          } else {
+            // 如果配置了Supabase，从数据库加载数据
+            const loadDataFromSupabase = async () => {
+              console.log('🔄 页面恢复：正在从Supabase加载数据...');
+              try {
+                const cloudTasks = await loadTasksFromSupabase();
+                if (cloudTasks && cloudTasks.length > 0) {
+                  console.log('✅ 从Supabase加载了', cloudTasks.length, '个任务');
+                  // 直接更新store，不使用set以避免触发持久化
+                  state.tasks = cloudTasks;
+                  state.lastSync = new Date().toISOString();
+                } else if (!state.tasks || state.tasks.length === 0) {
+                  console.log('⚠️ 云端无数据，使用本地数据或测试数据');
+                  state.tasks = createTestTasks();
+                  state.lastSync = new Date().toISOString();
+                }
+              } catch (error) {
+                console.error('❌ 从Supabase加载数据失败:', error);
+                if (!state.tasks || state.tasks.length === 0) {
+                  state.tasks = createTestTasks();
+                  state.lastSync = new Date().toISOString();
+                }
+              }
+            };
+            
+            // 异步加载数据
+            setTimeout(loadDataFromSupabase, 100);
           }
         }
       },

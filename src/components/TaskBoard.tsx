@@ -36,6 +36,7 @@ import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { getSupabaseConfig } from '@/lib/supabaseClient';
+import { useDataRestore } from '@/hooks/useDataRestore';
 
 export function TaskBoard() {
   const { 
@@ -48,23 +49,14 @@ export function TaskBoard() {
     enableRealtimeSync
   } = useTaskStore();
   const [isHydrated, setIsHydrated] = useState(false);
+  
+  // 使用数据恢复hook
+  useDataRestore();
 
   // 等待客户端水合完成
   useEffect(() => {
     setIsHydrated(true);
-    
-    // 页面加载时检查是否需要从数据库加载数据
-    const checkAndLoadData = async () => {
-      const config = getSupabaseConfig();
-      if (config.url && config.key) {
-        console.log('🔄 检测到Supabase配置，正在加载云端数据...');
-        await loadFromDatabase();
-        enableRealtimeSync();
-      }
-    };
-    
-    checkAndLoadData();
-  }, [loadFromDatabase, enableRealtimeSync]);
+  }, []);
   
   const tasks = isHydrated ? filteredTasks() : [];
   const upcomingTasks = isHydrated ? getUpcomingDeadlineTasks() : [];
