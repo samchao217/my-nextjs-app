@@ -84,3 +84,109 @@ export const createTasksTable = async () => {
     return false;
   }
 };
+
+// 数据同步功能
+export const saveTasksToSupabase = async (tasks: any[]) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) return false;
+
+  try {
+    // 获取当前所有任务
+    const { data: existingTasks } = await supabase.from('tasks').select('id');
+    const existingIds = existingTasks?.map(t => t.id) || [];
+
+    // 准备数据
+    const tasksToUpsert = tasks.map(task => ({
+      id: task.id,
+      data: task,
+      updated_at: new Date().toISOString()
+    }));
+
+    // 批量更新/插入
+    const { error } = await supabase
+      .from('tasks')
+      .upsert(tasksToUpsert, { onConflict: 'id' });
+
+    if (error) throw error;
+
+    // 删除本地不存在的任务
+    const currentIds = tasks.map(t => t.id);
+    const idsToDelete = existingIds.filter(id => !currentIds.includes(id));
+    
+    if (idsToDelete.length > 0) {
+      await supabase.from('tasks').delete().in('id', idsToDelete);
+    }
+
+    return true;
+  } catch (error) {
+    console.error('保存到Supabase失败:', error);
+    return false;
+  }
+};
+
+export const loadTasksFromSupabase = async () => {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+
+    return data?.map(row => row.data) || [];
+  } catch (error) {
+    console.error('从Supabase加载失败:', error);
+    return null;
+  }
+};
+
+// 实时订阅功能
+export const subscribeToTaskChanges = (callback: (tasks: any[]) => void) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+
+  const subscription = supabase
+    .channel('tasks_changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'tasks'
+      },
+      async () => {
+        // 当数据发生变化时，重新加载所有任务
+        const tasks = await loadTasksFromSupabase();
+        if (tasks) {
+          callback(tasks);
+        }
+      }
+    )
+    .subscribe();
+
+  return subscription;
+};
+
+// 获取最后更新时间
+export const getLastSyncTime = async (): Promise<string | null> => {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('updated_at')
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    if (error) throw error;
+
+    return data?.[0]?.updated_at || null;
+  } catch (error) {
+    console.error('获取最后同步时间失败:', error);
+    return null;
+  }
+};

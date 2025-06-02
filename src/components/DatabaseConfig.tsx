@@ -43,6 +43,7 @@ import {
   getSupabaseClient,
   createTasksTable
 } from '@/lib/supabaseClient';
+import { useTaskStore } from '@/store/taskStore';
 
 interface DatabaseConfigProps {
   onStorageTypeChange?: (useOnlineDb: boolean) => void;
@@ -55,6 +56,12 @@ export function DatabaseConfig({ onStorageTypeChange }: DatabaseConfigProps) {
   const [supabaseKey, setSupabaseKey] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  
+  const { 
+    loadFromDatabase, 
+    enableRealtimeSync, 
+    disableRealtimeSync 
+  } = useTaskStore();
 
   useEffect(() => {
     const config = getSupabaseConfig();
@@ -63,7 +70,12 @@ export function DatabaseConfig({ onStorageTypeChange }: DatabaseConfigProps) {
     const isConfigured = isSupabaseConfigured();
     setUseOnlineDb(isConfigured);
     setIsConnected(isConfigured);
-  }, []);
+    
+    // 如果已配置，自动启用实时同步
+    if (isConfigured) {
+      enableRealtimeSync();
+    }
+  }, [enableRealtimeSync]);
 
   const handleConnect = async () => {
     if (!supabaseUrl.trim() || !supabaseKey.trim()) {
@@ -86,8 +98,14 @@ export function DatabaseConfig({ onStorageTypeChange }: DatabaseConfigProps) {
         setUseOnlineDb(true);
         onStorageTypeChange?.(true);
         
+        // 加载云端数据
+        await loadFromDatabase();
+        
+        // 启用实时同步
+        enableRealtimeSync();
+        
         toast.success('Supabase连接成功！', {
-          description: tableExists ? '数据表已准备就绪' : '请手动创建数据表（见控制台）'
+          description: tableExists ? '实时同步已启用，数据将自动同步' : '请手动创建数据表（见控制台）'
         });
         setIsOpen(false);
       } else {
@@ -104,6 +122,9 @@ export function DatabaseConfig({ onStorageTypeChange }: DatabaseConfigProps) {
   };
 
   const handleDisconnect = () => {
+    // 禁用实时同步
+    disableRealtimeSync();
+    
     setSupabaseConfig('', '');
     setSupabaseUrl('');
     setSupabaseKey('');
@@ -155,7 +176,7 @@ export function DatabaseConfig({ onStorageTypeChange }: DatabaseConfigProps) {
             {isConnected ? (
               <Badge className="bg-green-100 text-green-700 border-green-200">
                 <CheckCircle className="h-3 w-3 mr-1" />
-                已连接
+                已连接·实时同步
               </Badge>
             ) : (
               <Badge variant="outline" className="text-gray-600">
@@ -171,8 +192,8 @@ export function DatabaseConfig({ onStorageTypeChange }: DatabaseConfigProps) {
             <div className="flex items-start gap-2">
               <Cloud className="h-4 w-4 mt-0.5 text-blue-500" />
               <div>
-                <p className="font-medium text-blue-700">在线数据库模式</p>
-                <p>数据保存在Supabase云数据库，支持跨设备同步</p>
+                <p className="font-medium text-blue-700">在线数据库模式·实时同步</p>
+                <p>数据保存在Supabase云数据库，多设备实时同步更新</p>
               </div>
             </div>
           ) : (

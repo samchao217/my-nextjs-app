@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Task, TaskFilter, TaskStore, TaskImage } from '@/types/task';
+import { 
+  saveTasksToSupabase, 
+  loadTasksFromSupabase, 
+  subscribeToTaskChanges,
+  isSupabaseConfigured 
+} from '@/lib/supabaseClient';
 
 // 创建一些测试任务，包括即将超期的任务
 const createTestTasks = (): Task[] => {
@@ -82,8 +88,8 @@ const createTestTasks = (): Task[] => {
   ];
 };
 
-// 使用测试数据，用户可以清空后添加自己的任务
-const mockTasks: Task[] = createTestTasks();
+// 实时同步状态
+let realtimeSubscription: any = null;
 
 export const useTaskStore = create<TaskStore>()(
   persist(
@@ -94,6 +100,55 @@ export const useTaskStore = create<TaskStore>()(
       isLoading: false,
       lastSync: null,
       warningDays: 3, // 默认3天预警
+
+      // 数据同步辅助函数
+      syncToDatabase: async () => {
+        if (isSupabaseConfigured()) {
+          const { tasks } = get();
+          await saveTasksToSupabase(tasks);
+        }
+      },
+
+      // 从数据库加载数据
+      loadFromDatabase: async () => {
+        if (isSupabaseConfigured()) {
+          set({ isLoading: true });
+          const tasks = await loadTasksFromSupabase();
+          if (tasks) {
+            set({ 
+              tasks, 
+              lastSync: new Date().toISOString(),
+              isLoading: false 
+            });
+          } else {
+            set({ isLoading: false });
+          }
+        }
+      },
+
+      // 启用实时同步
+      enableRealtimeSync: () => {
+        if (realtimeSubscription) {
+          realtimeSubscription.unsubscribe();
+        }
+
+        if (isSupabaseConfigured()) {
+          realtimeSubscription = subscribeToTaskChanges((tasks) => {
+            set({ 
+              tasks, 
+              lastSync: new Date().toISOString() 
+            });
+          });
+        }
+      },
+
+      // 禁用实时同步
+      disableRealtimeSync: () => {
+        if (realtimeSubscription) {
+          realtimeSubscription.unsubscribe();
+          realtimeSubscription = null;
+        }
+      },
 
       setTasks: (tasks) => set({ tasks }),
       
@@ -119,19 +174,24 @@ export const useTaskStore = create<TaskStore>()(
         });
       },
 
-      addTask: (taskData) => {
+      addTask: async (taskData) => {
         const newTask: Task = {
           ...taskData,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
+        
         set((state) => ({ 
           tasks: [...state.tasks, newTask],
           lastSync: new Date().toISOString()
         }));
+
+        // 同步到数据库
+        const { syncToDatabase } = get();
+        await syncToDatabase();
       },
 
-      updateTask: (id, updates) => {
+      updateTask: async (id, updates) => {
         set((state) => ({
           tasks: state.tasks.map((task) =>
             task.id === id 
@@ -146,20 +206,28 @@ export const useTaskStore = create<TaskStore>()(
           ),
           lastSync: new Date().toISOString()
         }));
+
+        // 同步到数据库
+        const { syncToDatabase } = get();
+        await syncToDatabase();
       },
 
-      deleteTask: (id) => {
+      deleteTask: async (id) => {
         set((state) => ({
           tasks: state.tasks.filter((task) => task.id !== id),
           lastSync: new Date().toISOString()
         }));
+
+        // 同步到数据库
+        const { syncToDatabase } = get();
+        await syncToDatabase();
       },
 
       setFilter: (filter) => set({ filter }),
       
       setLoading: (isLoading) => set({ isLoading }),
 
-      addNote: (taskId, note) => {
+      addNote: async (taskId, note) => {
         set((state) => ({
           tasks: state.tasks.map((task) =>
             task.id === taskId
@@ -172,9 +240,13 @@ export const useTaskStore = create<TaskStore>()(
           ),
           lastSync: new Date().toISOString()
         }));
+
+        // 同步到数据库
+        const { syncToDatabase } = get();
+        await syncToDatabase();
       },
 
-      removeNote: (taskId, noteIndex) => {
+      removeNote: async (taskId, noteIndex) => {
         set((state) => ({
           tasks: state.tasks.map((task) =>
             task.id === taskId
@@ -187,9 +259,13 @@ export const useTaskStore = create<TaskStore>()(
           ),
           lastSync: new Date().toISOString()
         }));
+
+        // 同步到数据库
+        const { syncToDatabase } = get();
+        await syncToDatabase();
       },
 
-      addProcessNote: (taskId, note) => {
+      addProcessNote: async (taskId, note) => {
         set((state) => ({
           tasks: state.tasks.map((task) =>
             task.id === taskId
@@ -202,9 +278,13 @@ export const useTaskStore = create<TaskStore>()(
           ),
           lastSync: new Date().toISOString()
         }));
+
+        // 同步到数据库
+        const { syncToDatabase } = get();
+        await syncToDatabase();
       },
 
-      removeProcessNote: (taskId, noteIndex) => {
+      removeProcessNote: async (taskId, noteIndex) => {
         set((state) => ({
           tasks: state.tasks.map((task) =>
             task.id === taskId
@@ -217,9 +297,13 @@ export const useTaskStore = create<TaskStore>()(
           ),
           lastSync: new Date().toISOString()
         }));
+
+        // 同步到数据库
+        const { syncToDatabase } = get();
+        await syncToDatabase();
       },
 
-      addImage: (taskId, image) => {
+      addImage: async (taskId, image) => {
         set((state) => ({
           tasks: state.tasks.map((task) =>
             task.id === taskId
@@ -232,9 +316,13 @@ export const useTaskStore = create<TaskStore>()(
           ),
           lastSync: new Date().toISOString()
         }));
+
+        // 同步到数据库
+        const { syncToDatabase } = get();
+        await syncToDatabase();
       },
 
-      removeImage: (taskId, imageIndex) => {
+      removeImage: async (taskId, imageIndex) => {
         set((state) => ({
           tasks: state.tasks.map((task) =>
             task.id === taskId
@@ -247,9 +335,13 @@ export const useTaskStore = create<TaskStore>()(
           ),
           lastSync: new Date().toISOString()
         }));
+
+        // 同步到数据库
+        const { syncToDatabase } = get();
+        await syncToDatabase();
       },
 
-      updateImages: (taskId, images) => {
+      updateImages: async (taskId, images) => {
         set((state) => ({
           tasks: state.tasks.map((task) =>
             task.id === taskId
@@ -262,9 +354,13 @@ export const useTaskStore = create<TaskStore>()(
           ),
           lastSync: new Date().toISOString()
         }));
+
+        // 同步到数据库
+        const { syncToDatabase } = get();
+        await syncToDatabase();
       },
 
-      updateImageDescription: (taskId, imageIndex, description) => {
+      updateImageDescription: async (taskId, imageIndex, description) => {
         set((state) => ({
           tasks: state.tasks.map((task) =>
             task.id === taskId
@@ -281,6 +377,10 @@ export const useTaskStore = create<TaskStore>()(
           ),
           lastSync: new Date().toISOString()
         }));
+
+        // 同步到数据库
+        const { syncToDatabase } = get();
+        await syncToDatabase();
       },
 
       filteredTasks: () => {

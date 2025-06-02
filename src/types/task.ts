@@ -35,29 +35,35 @@ export interface TaskStore {
   lastSync: string | null;
   warningDays: number; // 预警天数设置
   
-  // Actions
+  // 数据管理
   setTasks: (tasks: Task[]) => void;
-  addTask: (task: Omit<Task, 'createdAt' | 'updatedAt'>) => void;
-  updateTask: (id: string, updates: Partial<Task>) => void;
-  deleteTask: (id: string) => void;
+  resetToInitialData: () => void; // 添加重置数据方法
+  
+  // 实时同步方法
+  syncToDatabase: () => Promise<void>;
+  loadFromDatabase: () => Promise<void>;
+  enableRealtimeSync: () => void;
+  disableRealtimeSync: () => void;
+  
+  // Actions
+  addTask: (task: Omit<Task, 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
+  deleteTask: (id: string) => Promise<void>;
   setFilter: (filter: TaskFilter) => void;
   setLoading: (loading: boolean) => void;
   setWarningDays: (days: number) => void; // 设置预警天数
-  addNote: (taskId: string, note: string) => void;
-  removeNote: (taskId: string, noteIndex: number) => void;
-  addProcessNote: (taskId: string, note: string) => void;
-  removeProcessNote: (taskId: string, noteIndex: number) => void;
+  addNote: (taskId: string, note: string) => Promise<void>;
+  removeNote: (taskId: string, noteIndex: number) => Promise<void>;
+  addProcessNote: (taskId: string, note: string) => Promise<void>;
+  removeProcessNote: (taskId: string, noteIndex: number) => Promise<void>;
   
   // Image management
-  addImage: (taskId: string, image: TaskImage) => void;
-  removeImage: (taskId: string, imageIndex: number) => void;
-  updateImages: (taskId: string, images: TaskImage[]) => void;
-  updateImageDescription: (taskId: string, imageIndex: number, description: string) => void;
+  addImage: (taskId: string, image: TaskImage) => Promise<void>;
+  removeImage: (taskId: string, imageIndex: number) => Promise<void>;
+  updateImages: (taskId: string, images: TaskImage[]) => Promise<void>;
+  updateImageDescription: (taskId: string, imageIndex: number, description: string) => Promise<void>;
   
   // Computed
   filteredTasks: () => Task[];
   getUpcomingDeadlineTasks: () => Task[]; // 获取即将超期的任务
-  
-  // 数据管理
-  resetToInitialData: () => void; // 添加重置数据方法
 } 
