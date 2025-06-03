@@ -214,41 +214,7 @@ export function TaskBoard() {
         <div className="flex-1">
           <TaskFilters />
         </div>
-        <div className="flex items-center gap-2">          
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              // 创建一个测试任务用于验证图片功能
-              const testTaskId = `IMG-TEST-${Date.now()}`;
-              const testTask = {
-                id: testTaskId,
-                images: [],
-                specs: {
-                  size: '图片测试',
-                  color: '测试专用',
-                  other: '⚠️ 这是图片功能测试任务，请为此任务上传多张图片来验证功能'
-                },
-                status: 'preparing' as const,
-                priority: 'normal' as const,
-                deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-                notes: ['🧪 图片功能测试：', '1. 上传多张图片', '2. 刷新页面检查是否保存', '3. 在其他设备查看是否同步'],
-                processNotes: [],
-                hasBeenRevised: false,
-              };
-              
-              addTask(testTask);
-              toast.success('图片测试任务已创建！', {
-                description: '请为此任务上传多张图片来测试功能'
-              });
-            }}
-            className="text-xs gap-1"
-          >
-            <Plus className="h-3 w-3" />
-            测试图片功能
-          </Button>
-          
-          <DataDebugger />
+        <div className="flex items-center gap-2">
           <ExportButton tasks={tasks} variant="batch" />
           <CreateTaskDialog />
         </div>
@@ -281,6 +247,16 @@ export function TaskBoard() {
               <p className="text-sm text-muted-foreground">
                 以下设置用于配置数据存储和云端同步功能
               </p>
+              
+              {/* 数据诊断 */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                  <Settings className="h-4 w-4 text-gray-600" />
+                  <h4 className="font-medium text-gray-900">数据诊断</h4>
+                  <span className="text-xs text-gray-500">系统调试工具</span>
+                </div>
+                <DataDebugger />
+              </div>
               
               {/* 数据库配置 */}
               <div className="space-y-3">
