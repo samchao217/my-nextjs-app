@@ -13,6 +13,11 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { 
   ClipboardList, 
   Clock, 
   CheckCircle, 
@@ -94,8 +99,7 @@ export function TaskBoard() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
           <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
-          <p className="text-muted-foreground">正在同步数据，请稍候...</p>
-          <p className="text-xs text-muted-foreground">初次加载可能需要几秒钟</p>
+          <p className="text-muted-foreground">正在加载，请稍候...</p>
         </div>
       </div>
     );
@@ -108,23 +112,9 @@ export function TaskBoard() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight">苏琪针织-打样管理系统</h1>
-            {isHydrated && (
-              <>
-                <Badge variant="outline" className="text-xs bg-green-50 border-green-200 text-green-700">
-                  <Database className="h-3 w-3 mr-1" />
-                  数据已同步
-                </Badge>
-                {/* <StorageIndicator /> */}
-              </>
-            )}
           </div>
           <p className="text-muted-foreground">
             管理和跟踪所有袜子打样制作任务的进度
-            {isHydrated && lastSync && (
-              <span className="ml-2 text-sm">
-                • 最后同步: {format(new Date(lastSync), 'MM-dd HH:mm', { locale: zhCN })}
-              </span>
-            )}
           </p>
         </div>
         
@@ -160,19 +150,6 @@ export function TaskBoard() {
           </Badge>
         </div>
       </div>
-
-      {/* 数据同步状态提示 */}
-      {hasRestored && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <div className="flex items-center gap-2 text-blue-700">
-            <CheckCircle className="h-4 w-4" />
-            <span className="text-sm font-medium">数据同步完成</span>
-          </div>
-          <p className="text-xs text-blue-600 mt-1">
-            所有任务数据已成功加载，包括图片和配置信息
-          </p>
-        </div>
-      )}
 
       {/* 预警设置 */}
       <WarningSettings />
