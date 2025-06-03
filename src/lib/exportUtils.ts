@@ -355,10 +355,6 @@ export const exportTaskAsHTML = (task: Task): void => {
   URL.revokeObjectURL(link.href);
 };
 
-
-
-
-
 // 导出多个任务为Excel格式（CSV）
 export const exportTasksAsCSV = (tasks: Task[]): void => {
   const headers = [
@@ -416,13 +412,315 @@ export const exportAllTasksAsJSON = (tasks: Task[]): void => {
     totalTasks: tasks.length,
     tasks: tasks
   };
-
+  
   const dataStr = JSON.stringify(exportData, null, 2);
   const dataBlob = new Blob([dataStr], { type: 'application/json' });
   
   const link = document.createElement('a');
   link.href = URL.createObjectURL(dataBlob);
-  link.download = `所有任务_${new Date().toISOString().split('T')[0]}.json`;
+  link.download = `苏琪针织_全部任务_${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+};
+
+// 批量导出所有任务为HTML格式
+export const exportAllTasksAsHTML = (tasks: Task[]): void => {
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleString('zh-CN');
+  };
+
+  const getStatusColor = (status: Task['status']): string => {
+    const statusColors = {
+      preparing: '#6c757d',
+      connecting: '#17a2b8',
+      material_prep: '#007bff',
+      sampling: '#ffc107',
+      post_processing: '#6f42c1',
+      completed: '#28a745',
+      revision: '#dc3545'
+    };
+    return statusColors[status] || '#6c757d';
+  };
+
+  const getPriorityColor = (priority: Task['priority']): string => {
+    const priorityColors = {
+      urgent: '#dc3545',
+      high: '#fd7e14', 
+      normal: '#28a745',
+      low: '#6c757d'
+    };
+    return priorityColors[priority] || '#6c757d';
+  };
+
+  const htmlContent = `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>苏琪针织 - 打样任务总览报告</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #333;
+            margin: 0 0 10px 0;
+        }
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .summary-item {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            border-left: 4px solid #007bff;
+        }
+        .summary-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .summary-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .task-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .task-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .task-id {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+        .badges {
+            display: flex;
+            gap: 8px;
+        }
+        .badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+        }
+        .task-body {
+            padding: 20px;
+        }
+        .task-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .info-item {
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #666;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        .info-value {
+            color: #333;
+        }
+        .images-section {
+            margin-top: 15px;
+        }
+        .images-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .image-thumb {
+            width: 100%;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        .notes-section {
+            margin-top: 15px;
+        }
+        .notes-list {
+            list-style: none;
+            padding: 0;
+        }
+        .notes-list li {
+            padding: 8px 12px;
+            margin-bottom: 6px;
+            background: #f8f9fa;
+            border-left: 3px solid #007bff;
+            border-radius: 0 4px 4px 0;
+            font-size: 14px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            color: #666;
+            font-size: 14px;
+        }
+        @media print {
+            body { background: white; }
+            .container { box-shadow: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>苏琪针织 - 打样任务总览报告</h1>
+            <p>导出时间: ${new Date().toLocaleString('zh-CN')} | 总任务数: ${tasks.length}</p>
+        </div>
+
+        <div class="summary">
+            <div class="summary-item">
+                <div class="summary-number">${tasks.length}</div>
+                <div class="summary-label">总任务数</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-number">${tasks.filter(t => t.status === 'completed').length}</div>
+                <div class="summary-label">已完成</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-number">${tasks.filter(t => t.priority === 'urgent').length}</div>
+                <div class="summary-label">紧急任务</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-number">${tasks.filter(t => new Date(t.deadline) < new Date() && t.status !== 'completed').length}</div>
+                <div class="summary-label">已超期</div>
+            </div>
+        </div>
+
+        ${tasks.map(task => `
+        <div class="task-card">
+            <div class="task-header">
+                <div class="task-id">任务 ${task.id}</div>
+                <div class="badges">
+                    <span class="badge" style="background-color: ${getStatusColor(task.status)}">${formatStatus(task.status)}</span>
+                    <span class="badge" style="background-color: ${getPriorityColor(task.priority)}">${formatPriority(task.priority)}</span>
+                    ${task.hasBeenRevised ? '<span class="badge" style="background-color: #dc3545">返工</span>' : ''}
+                </div>
+            </div>
+            <div class="task-body">
+                <div class="task-info">
+                    <div class="info-item">
+                        <div class="info-label">尺寸</div>
+                        <div class="info-value">${task.specs.size}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">颜色</div>
+                        <div class="info-value">${task.specs.color}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">截止时间</div>
+                        <div class="info-value">${formatDate(task.deadline)}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">创建时间</div>
+                        <div class="info-value">${formatDate(task.createdAt)}</div>
+                    </div>
+                </div>
+                
+                ${task.specs.other ? `
+                <div class="info-item">
+                    <div class="info-label">其他要求</div>
+                    <div class="info-value">${task.specs.other}</div>
+                </div>
+                ` : ''}
+
+                ${task.images.length > 0 ? `
+                <div class="images-section">
+                    <div class="info-label">样品图片 (${task.images.length}张)</div>
+                    <div class="images-grid">
+                        ${task.images.map((img, index) => `
+                        <img src="${img.url}" alt="样品图片${index + 1}" class="image-thumb" 
+                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjgwIiB2aWV3Qm94PSIwIDAgMTAwIDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjRjNGNEY2Ii8+Cjx0ZXh0IHg9IjUwIiB5PSI0MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEwIiBmaWxsPSIjOUNBM0FGIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+5Zu+54mH5peg5rOV5Yqg6L29PC90ZXh0Pgo8L3N2Zz4='" />
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
+
+                ${task.notes.length > 0 ? `
+                <div class="notes-section">
+                    <div class="info-label">备注信息</div>
+                    <ul class="notes-list">
+                        ${task.notes.map(note => `<li>${note}</li>`).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+
+                ${task.processNotes.length > 0 ? `
+                <div class="notes-section">
+                    <div class="info-label">工艺说明</div>
+                    <ul class="notes-list">
+                        ${task.processNotes.map(note => `<li>${note}</li>`).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+            </div>
+        </div>
+        `).join('')}
+
+        <div class="footer">
+            <p>苏琪针织打样管理系统 | 数据导出时间: ${new Date().toLocaleString('zh-CN')}</p>
+            <p>此报告包含 ${tasks.length} 个任务的完整信息，可用于存档或分享</p>
+        </div>
+    </div>
+</body>
+</html>
+  `.trim();
+
+  const dataBlob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+  
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(dataBlob);
+  link.download = `苏琪针织_任务总览报告_${new Date().toISOString().split('T')[0]}.html`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

@@ -18,7 +18,8 @@ import {
   exportTaskWithImages,
   exportTaskAsHTML,
   exportTasksAsCSV, 
-  exportAllTasksAsJSON 
+  exportAllTasksAsJSON,
+  exportAllTasksAsHTML
 } from '@/lib/exportUtils';
 
 interface ExportButtonProps {
@@ -68,10 +69,11 @@ export function ExportButton({ task, tasks, variant = 'single', size = 'default'
           if (variant === 'single' && task) {
             exportTaskAsHTML(task);
             toast.success(`任务 ${task.id} 已导出为网页格式`);
+          } else if (variant === 'batch' && tasks) {
+            exportAllTasksAsHTML(tasks);
+            toast.success(`${tasks.length} 个任务已导出为网页总览报告`);
           }
           break;
-          
-
           
         case 'csv':
           if (variant === 'batch' && tasks) {
@@ -117,7 +119,7 @@ export function ExportButton({ task, tasks, variant = 'single', size = 'default'
           <>
             <DropdownMenuItem onClick={() => handleExport('html')}>
               <Globe className="mr-2 h-4 w-4" />
-              网页报告 (.html) 推荐
+              网页报告 (.html)
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => handleExport('text-with-images')}>
@@ -137,14 +139,18 @@ export function ExportButton({ task, tasks, variant = 'single', size = 'default'
         
         {variant === 'batch' && (
           <>
-            <DropdownMenuItem onClick={() => handleExport('csv')}>
-              <FileSpreadsheet className="mr-2 h-4 w-4" />
-              导出为 Excel (.csv)
+            <DropdownMenuItem onClick={() => handleExport('html')}>
+              <Globe className="mr-2 h-4 w-4" />
+              网页总览报告 (.html)
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleExport('csv')}>
+              <FileSpreadsheet className="mr-2 h-4 w-4" />
+              Excel表格 (.csv)
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => handleExport('json')}>
               <FileJson className="mr-2 h-4 w-4" />
-              导出为 JSON (.json)
+              数据备份 (.json)
             </DropdownMenuItem>
           </>
         )}

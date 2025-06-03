@@ -13,17 +13,6 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { 
   ClipboardList, 
   Clock, 
   CheckCircle, 
@@ -31,7 +20,11 @@ import {
   TrendingUp,
   RefreshCw,
   Database,
-  Plus
+  Plus,
+  ChevronDown,
+  ChevronRight,
+  Settings,
+  Server
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -55,6 +48,7 @@ export function TaskBoard() {
   
   // 使用数据恢复hook
   const { hasRestored, isHydrated } = useDataRestore();
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   
   const tasks = isHydrated ? filteredTasks() : [];
   const upcomingTasks = isHydrated ? getUpcomingDeadlineTasks() : [];
@@ -183,12 +177,6 @@ export function TaskBoard() {
       {/* 预警设置 */}
       <WarningSettings />
 
-      {/* 数据存储设置 */}
-      <DatabaseConfig />
-
-      {/* NAS配置 */}
-      <NASConfig />
-
       {/* 重要指标统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="border-red-200 bg-red-50">
@@ -249,51 +237,7 @@ export function TaskBoard() {
         <div className="flex-1">
           <TaskFilters />
         </div>
-        <div className="flex items-center gap-2">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="text-xs gap-1"
-              >
-                <Database className="h-3 w-3" />
-                数据管理
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle className="flex items-center gap-2">
-                  <Database className="h-5 w-5" />
-                  数据管理
-                </AlertDialogTitle>
-                <AlertDialogDescription className="space-y-2">
-                  <p>您可以重置所有数据到初始状态。</p>
-                  <div className="text-sm text-muted-foreground bg-muted p-3 rounded">
-                    <p className="font-medium mb-1">当前数据状态：</p>
-                    <p>• 任务总数：{stats.total}</p>
-                    <p>• 最后更新：{isHydrated && lastSync ? format(new Date(lastSync), 'yyyy-MM-dd HH:mm:ss', { locale: zhCN }) : '暂无'}</p>
-                  </div>
-                  <p className="text-amber-600 font-medium">⚠️ 注意：重置操作将清除所有当前数据，包括您添加或修改的任务！</p>
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>取消</AlertDialogCancel>
-                <AlertDialogAction 
-                  onClick={() => {
-                    resetToInitialData();
-                    toast.success('数据已重置为初始状态', {
-                      description: '系统已恢复到默认的示例数据'
-                    });
-                  }}
-                  className="bg-red-600 hover:bg-red-700"
-                >
-                  确认重置
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          
+        <div className="flex items-center gap-2">          
           <Button
             variant="outline"
             size="sm"
@@ -335,6 +279,55 @@ export function TaskBoard() {
 
       {/* 任务列表 */}
       <TaskList tasks={tasks} isLoading={isLoading} />
+
+      {/* 高级设置 - 放在最底部 */}
+      <Card className="border-gray-200">
+        <CardHeader 
+          className="cursor-pointer hover:bg-gray-50 transition-colors"
+          onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
+        >
+          <CardTitle className="text-base font-medium text-gray-700 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              高级设置
+            </div>
+            {isAdvancedOpen ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </CardTitle>
+        </CardHeader>
+        {isAdvancedOpen && (
+          <CardContent className="pt-0">
+            <div className="space-y-6">
+              <p className="text-sm text-muted-foreground">
+                以下设置用于配置数据存储和云端同步功能
+              </p>
+              
+              {/* 数据库配置 */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                  <Database className="h-4 w-4 text-gray-600" />
+                  <h4 className="font-medium text-gray-900">数据库同步</h4>
+                  <span className="text-xs text-gray-500">Supabase云数据库</span>
+                </div>
+                <DatabaseConfig />
+              </div>
+
+              {/* 云存储配置 */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                  <Server className="h-4 w-4 text-gray-600" />
+                  <h4 className="font-medium text-gray-900">云存储服务</h4>
+                  <span className="text-xs text-gray-500">支持NAS、阿里云OSS</span>
+                </div>
+                <NASConfig />
+              </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
     </div>
   );
 } 

@@ -40,13 +40,18 @@ import { toast } from 'sonner';
 
 export interface NASConfig {
   enabled: boolean;
-  type: 'webdav' | 'http' | 'ftp';
+  type: 'webdav' | 'http' | 'ftp' | 'aliyun-oss';
   server: string;
   username: string;
   password: string;
   path: string;
   uploadEndpoint?: string;
   testImageUrl?: string;
+  // 阿里云OSS专用配置
+  accessKeyId?: string;
+  accessKeySecret?: string;
+  region?: string;
+  bucket?: string;
 }
 
 interface NASConfigProps {
@@ -62,7 +67,11 @@ export function NASConfig({ onConfigChange }: NASConfigProps) {
     password: '',
     path: '/images',
     uploadEndpoint: '',
-    testImageUrl: ''
+    testImageUrl: '',
+    accessKeyId: '',
+    accessKeySecret: '',
+    region: '',
+    bucket: ''
   });
   const [isOpen, setIsOpen] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -141,7 +150,7 @@ export function NASConfig({ onConfigChange }: NASConfigProps) {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <Server className="h-4 w-4" />
-          NAS存储配置
+          云存储配置
           {config.enabled && (
             <Badge variant="secondary" className="text-xs">
               <CheckCircle className="h-3 w-3 mr-1" />
@@ -154,10 +163,10 @@ export function NASConfig({ onConfigChange }: NASConfigProps) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <HardDrive className="h-5 w-5" />
-            NAS存储配置
+            云存储配置 (支持NAS、阿里云OSS)
           </DialogTitle>
           <DialogDescription>
-            配置NAS服务器用于存储图片，解决本地存储空间限制问题
+            配置云存储服务用于存储图片，支持NAS服务器和阿里云OSS，解决本地存储空间限制问题
           </DialogDescription>
         </DialogHeader>
 
@@ -183,7 +192,7 @@ export function NASConfig({ onConfigChange }: NASConfigProps) {
               <Label>存储类型</Label>
               <Select
                 value={config.type}
-                onValueChange={(type: 'webdav' | 'http' | 'ftp') =>
+                onValueChange={(type: 'webdav' | 'http' | 'ftp' | 'aliyun-oss') =>
                   setConfig(prev => ({ ...prev, type }))
                 }
               >
@@ -191,50 +200,124 @@ export function NASConfig({ onConfigChange }: NASConfigProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="webdav">WebDAV (推荐)</SelectItem>
+                  <SelectItem value="aliyun-oss">阿里云OSS (推荐)</SelectItem>
+                  <SelectItem value="webdav">WebDAV</SelectItem>
                   <SelectItem value="http">HTTP上传</SelectItem>
                   <SelectItem value="ftp">FTP over HTTP</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>服务器地址</Label>
-              <Input
-                placeholder="例如: http://192.168.1.100:5000 或 https://your-nas.com"
-                value={config.server}
-                onChange={(e) => setConfig(prev => ({ ...prev, server: e.target.value }))}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+            {config.type !== 'aliyun-oss' && (
               <div className="space-y-2">
-                <Label>用户名</Label>
+                <Label>服务器地址</Label>
                 <Input
-                  placeholder="NAS用户名"
-                  value={config.username}
-                  onChange={(e) => setConfig(prev => ({ ...prev, username: e.target.value }))}
+                  placeholder="例如: http://192.168.1.100:5000 或 https://your-nas.com"
+                  value={config.server}
+                  onChange={(e) => setConfig(prev => ({ ...prev, server: e.target.value }))}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>密码</Label>
-                <Input
-                  type="password"
-                  placeholder="NAS密码"
-                  value={config.password}
-                  onChange={(e) => setConfig(prev => ({ ...prev, password: e.target.value }))}
-                />
-              </div>
-            </div>
+            )}
 
-            <div className="space-y-2">
-              <Label>存储路径</Label>
-              <Input
-                placeholder="/images 或 /shared/upload"
-                value={config.path}
-                onChange={(e) => setConfig(prev => ({ ...prev, path: e.target.value }))}
-              />
-            </div>
+            {config.type === 'aliyun-oss' ? (
+              // 阿里云OSS专用配置
+              <>
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <p className="text-sm text-blue-700">
+                    <strong>阿里云OSS存储</strong> - 可靠的云端对象存储服务，支持海量数据存储，按需付费。
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Access Key ID</Label>
+                    <Input
+                      placeholder="您的阿里云AccessKey ID"
+                      value={config.accessKeyId || ''}
+                      onChange={(e) => setConfig(prev => ({ ...prev, accessKeyId: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Access Key Secret</Label>
+                    <Input
+                      type="password"
+                      placeholder="您的阿里云AccessKey Secret"
+                      value={config.accessKeySecret || ''}
+                      onChange={(e) => setConfig(prev => ({ ...prev, accessKeySecret: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>地域 (Region)</Label>
+                    <Input
+                      placeholder="例如: oss-cn-hangzhou"
+                      value={config.region || ''}
+                      onChange={(e) => setConfig(prev => ({ ...prev, region: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>存储桶 (Bucket)</Label>
+                    <Input
+                      placeholder="您的OSS存储桶名称"
+                      value={config.bucket || ''}
+                      onChange={(e) => setConfig(prev => ({ ...prev, bucket: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>存储路径</Label>
+                  <Input
+                    placeholder="images/ 或 upload/photos/"
+                    value={config.path}
+                    onChange={(e) => setConfig(prev => ({ ...prev, path: e.target.value }))}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    文件在OSS中的存储路径前缀，以/结尾
+                  </p>
+                </div>
+              </>
+            ) : (
+              // 传统NAS配置
+              <>
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
+                  <p className="text-sm text-gray-700">
+                    <strong>本地NAS存储</strong> - 连接您的私有网络存储设备，适合内网环境使用。
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>用户名</Label>
+                    <Input
+                      placeholder="NAS用户名"
+                      value={config.username}
+                      onChange={(e) => setConfig(prev => ({ ...prev, username: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>密码</Label>
+                    <Input
+                      type="password"
+                      placeholder="NAS密码"
+                      value={config.password}
+                      onChange={(e) => setConfig(prev => ({ ...prev, password: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>存储路径</Label>
+                  <Input
+                    placeholder="/images 或 /shared/upload"
+                    value={config.path}
+                    onChange={(e) => setConfig(prev => ({ ...prev, path: e.target.value }))}
+                  />
+                </div>
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="advanced" className="space-y-4">
@@ -276,6 +359,21 @@ export function NASConfig({ onConfigChange }: NASConfigProps) {
                   地址: http://your-qnap-ip:8080<br />
                   路径: /multimedia
                 </div>
+                {config.type === 'aliyun-oss' && (
+                  <div className="p-3 bg-blue-50 rounded-md border border-blue-200">
+                    <strong>阿里云OSS示例:</strong><br />
+                    地域: oss-cn-hangzhou (华东1杭州)<br />
+                    存储桶: my-image-bucket<br />
+                    路径: images/<br />
+                    <br />
+                    <strong>常用地域代码:</strong><br />
+                    • oss-cn-hangzhou (华东1杭州)<br />
+                    • oss-cn-shanghai (华东2上海)<br />
+                    • oss-cn-beijing (华北2北京)<br />
+                    • oss-cn-shenzhen (华南1深圳)<br />
+                    • oss-cn-hongkong (香港)
+                  </div>
+                )}
               </div>
             </div>
           </TabsContent>
@@ -284,7 +382,11 @@ export function NASConfig({ onConfigChange }: NASConfigProps) {
             <div className="text-center space-y-4">
               <Button
                 onClick={testConnection}
-                disabled={!config.server || !config.username || isTesting}
+                disabled={
+                  config.type === 'aliyun-oss' 
+                    ? (!config.accessKeyId || !config.accessKeySecret || !config.region || !config.bucket || isTesting)
+                    : (!config.server || !config.username || isTesting)
+                }
                 className="gap-2"
               >
                 <TestTube className="h-4 w-4" />
@@ -326,11 +428,24 @@ export function NASConfig({ onConfigChange }: NASConfigProps) {
             <div className="space-y-2">
               <Label>故障排除</Label>
               <div className="text-sm text-muted-foreground space-y-1">
-                <p>• 确保NAS服务器地址可访问</p>
-                <p>• 检查用户名和密码是否正确</p>
-                <p>• 确认目标路径存在且有写入权限</p>
-                <p>• 检查防火墙和网络设置</p>
-                <p>• 某些NAS需要启用WebDAV或HTTP服务</p>
+                {config.type === 'aliyun-oss' ? (
+                  <>
+                    <p>• 确保AccessKey ID和Secret正确</p>
+                    <p>• 检查存储桶名称和地域代码</p>
+                    <p>• 确认RAM用户有OSS操作权限</p>
+                    <p>• 检查存储桶的访问权限设置</p>
+                    <p>• 确保网络连接正常，可访问阿里云</p>
+                    <p>• 注意：此为简化实现，生产环境建议后端签名</p>
+                  </>
+                ) : (
+                  <>
+                    <p>• 确保NAS服务器地址可访问</p>
+                    <p>• 检查用户名和密码是否正确</p>
+                    <p>• 确认目标路径存在且有写入权限</p>
+                    <p>• 检查防火墙和网络设置</p>
+                    <p>• 某些NAS需要启用WebDAV或HTTP服务</p>
+                  </>
+                )}
               </div>
             </div>
           </TabsContent>
@@ -355,6 +470,24 @@ export function NASConfig({ onConfigChange }: NASConfigProps) {
 // 获取NAS配置指南
 function getNASConfigGuide(type: string): string {
   switch (type) {
+    case 'aliyun-oss':
+      return `阿里云OSS配置说明：
+1. 登录阿里云控制台，开通OSS服务
+2. 创建存储桶(Bucket)，设置合适的访问权限
+3. 创建RAM用户，获取AccessKey ID和Secret
+4. 为RAM用户分配OSS操作权限
+
+配置步骤：
+- 地域：选择离您最近的地域(如 oss-cn-hangzhou)
+- 存储桶：创建专用于图片存储的bucket
+- Access Key：使用RAM用户的key，避免使用主账号
+- 路径：建议使用 images/ 等有意义的前缀
+
+权限设置：
+- 存储桶权限：私有读写或公共读
+- RAM权限：PutObject, GetObject
+- 建议启用HTTPS传输`;
+
     case 'webdav':
       return `WebDAV配置说明：
 1. 在NAS上启用WebDAV服务
@@ -404,8 +537,67 @@ export async function uploadToNAS(file: File, config: NASConfig): Promise<{
   url?: string;
   error?: string;
 }> {
-  if (!config.enabled || !config.server) {
-    return { success: false, error: 'NAS配置未启用或服务器地址为空' };
+  if (!config.enabled) {
+    return { success: false, error: 'NAS配置未启用' };
+  }
+
+  // 阿里云OSS上传
+  if (config.type === 'aliyun-oss') {
+    if (!config.accessKeyId || !config.accessKeySecret || !config.region || !config.bucket) {
+      return { success: false, error: '阿里云OSS配置信息不完整' };
+    }
+
+    try {
+      // 构建文件路径
+      const fileName = `${config.path || 'images/'}${Date.now()}-${file.name}`;
+      
+      // 生成签名和上传URL
+      const date = new Date().toISOString();
+      const endpoint = `https://${config.bucket}.${config.region}.aliyuncs.com`;
+      const uploadUrl = `${endpoint}/${fileName}`;
+
+      // 简化的签名实现（生产环境建议使用后端签名）
+      const formData = new FormData();
+      formData.append('key', fileName);
+      formData.append('OSSAccessKeyId', config.accessKeyId);
+      formData.append('policy', btoa(JSON.stringify({
+        expiration: new Date(Date.now() + 3600000).toISOString(),
+        conditions: [
+          ['content-length-range', 0, 52428800], // 50MB限制
+          { bucket: config.bucket },
+          { key: fileName }
+        ]
+      })));
+      formData.append('file', file);
+
+      // 使用PUT方法直接上传（简化版）
+      const response = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `OSS ${config.accessKeyId}:${btoa(config.accessKeySecret)}`,
+          'Content-Type': file.type,
+          'x-oss-date': date,
+        },
+        body: file,
+      });
+
+      if (!response.ok) {
+        throw new Error(`OSS上传失败: ${response.status} ${response.statusText}`);
+      }
+
+      return { success: true, url: uploadUrl };
+    } catch (error) {
+      console.error('阿里云OSS上传失败:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : '阿里云OSS上传失败' 
+      };
+    }
+  }
+
+  // 传统NAS上传逻辑
+  if (!config.server) {
+    return { success: false, error: 'NAS服务器地址为空' };
   }
 
   const formData = new FormData();
