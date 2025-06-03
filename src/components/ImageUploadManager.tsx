@@ -162,7 +162,7 @@ export function ImageUploadManager({ task }: ImageUploadManagerProps) {
         }
 
         let imageUrl = '';
-        let description = '';
+        let description = ''; // 留空，让用户手动添加备注
         let uploadMethod = '';
 
         // 优先尝试NAS上传
@@ -172,7 +172,7 @@ export function ImageUploadManager({ task }: ImageUploadManagerProps) {
           
           if (nasResult.success && nasResult.url) {
             imageUrl = nasResult.url;
-            description = `上传于: ${new Date().toLocaleString()}, 原文件: ${file.name}, 存储: NAS`;
+            // 阿里云OSS等NAS存储不需要压缩，也不需要自动说明
             uploadMethod = 'NAS';
             nasSuccessCount++;
             console.log('✅ NAS上传成功:', imageUrl);
@@ -198,7 +198,7 @@ export function ImageUploadManager({ task }: ImageUploadManagerProps) {
             throw new Error('本地存储空间不足');
           }
 
-          // 压缩图片
+          // 压缩图片（仅本地存储需要压缩）
           let compressedDataUrl: string = '';
           let attempts = 0;
           const maxAttempts = 3;
@@ -219,7 +219,8 @@ export function ImageUploadManager({ task }: ImageUploadManagerProps) {
 
           imageUrl = compressedDataUrl;
           const finalSize = compressedDataUrl.length * 0.75;
-          description = `上传于: ${new Date().toLocaleString()}, 原文件: ${file.name}, 压缩后: ${(finalSize / 1024).toFixed(2)}KB`;
+          // 本地存储生成简单的说明，用户可以自行修改
+          description = '';
         }
 
         // 添加图片到任务

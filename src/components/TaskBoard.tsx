@@ -36,7 +36,7 @@ import { zhCN } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { getSupabaseConfig } from '@/lib/supabaseClient';
 import { useDataRestore } from '@/hooks/useDataRestore';
-// import { StorageIndicator } from './StorageIndicator';
+import { SupabaseStorageIndicator } from './SupabaseStorageIndicator';
 import { NASConfig } from './NASConfig';
 
 export function TaskBoard() {
@@ -112,6 +112,7 @@ export function TaskBoard() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight">苏琪针织-打样管理系统</h1>
+            <SupabaseStorageIndicator />
           </div>
           <p className="text-muted-foreground">
             管理和跟踪所有袜子打样制作任务的进度
