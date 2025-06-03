@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -32,11 +32,14 @@ import {
   Edit3,
   ZoomIn,
   ZoomOut,
-  RotateCcw
+  RotateCcw,
+  Server,
+  HardDrive
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTaskStore } from '@/store/taskStore';
 import { PasswordDialog } from './PasswordDialog';
+import { uploadToNAS, type NASConfig } from './NASConfig';
 import type { Task } from '@/types/task';
 
 interface ImageUploadManagerProps {
@@ -56,37 +59,226 @@ export function ImageUploadManager({ task }: ImageUploadManagerProps) {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [nasConfig, setNASConfig] = useState<NASConfig | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { addImage, removeImage, updateImageDescription } = useTaskStore();
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // 加载NAS配置
+  useEffect(() => {
+    const savedConfig = localStorage.getItem('nas-config');
+    if (savedConfig) {
+      try {
+        setNASConfig(JSON.parse(savedConfig));
+      } catch (error) {
+        console.error('加载NAS配置失败:', error);
+      }
+    }
+  }, []);
+
+  // 图片压缩函数 - 适用于本地存储的压缩策略
+  const compressImage = (file: File, maxWidth: number = 600, quality: number = 0.6): Promise<string> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = document.createElement('img');
+
+      img.onload = () => {
+        // 计算新的尺寸
+        let { width, height } = img;
+        
+        // 如果图片太大，先按比例缩小
+        const maxDimension = Math.max(width, height);
+        if (maxDimension > maxWidth) {
+          const ratio = maxWidth / maxDimension;
+          width = width * ratio;
+          height = height * ratio;
+        }
+        
+        // 设置画布尺寸
+        canvas.width = width;
+        canvas.height = height;
+        
+        // 绘制压缩后的图片
+        if (ctx) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+        }
+        
+        // 导出为Base64
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedDataUrl);
+      };
+
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  // 检查存储空间的函数
+  const checkStorageSpace = (): { available: boolean; usedSpace: number; totalSpace: number } => {
+    try {
+      let usedSpace = 0;
+      for (let key in localStorage) {
+        if (localStorage.hasOwnProperty(key)) {
+          usedSpace += localStorage[key].length;
+        }
+      }
+      const totalSpace = 5 * 1024 * 1024; // 5MB
+      return { 
+        available: usedSpace < totalSpace * 0.9, 
+        usedSpace, 
+        totalSpace 
+      };
+    } catch (error) {
+      return { available: false, usedSpace: 0, totalSpace: 5 * 1024 * 1024 };
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files) return;
 
-    Array.from(files).forEach((file) => {
-      // 验证文件类型
-      if (!file.type.startsWith('image/')) {
-        toast.error(`${file.name} 不是有效的图片文件`);
-        return;
+    const fileArray = Array.from(files);
+    let successCount = 0;
+    let errorCount = 0;
+    let nasSuccessCount = 0;
+    let localSuccessCount = 0;
+
+    for (const file of fileArray) {
+      try {
+        // 验证文件类型
+        if (!file.type.startsWith('image/')) {
+          toast.error(`${file.name} 不是有效的图片文件`);
+          errorCount++;
+          continue;
+        }
+
+        // 验证文件大小（NAS模式下可以更大）
+        const maxSize = nasConfig?.enabled ? 50 * 1024 * 1024 : 5 * 1024 * 1024; // NAS: 50MB, 本地: 5MB
+        if (file.size > maxSize) {
+          toast.error(`${file.name} 文件大小超过 ${maxSize / 1024 / 1024}MB`);
+          errorCount++;
+          continue;
+        }
+
+        let imageUrl = '';
+        let description = '';
+        let uploadMethod = '';
+
+        // 优先尝试NAS上传
+        if (nasConfig?.enabled) {
+          console.log('🔄 尝试上传到NAS:', file.name);
+          const nasResult = await uploadToNAS(file, nasConfig);
+          
+          if (nasResult.success && nasResult.url) {
+            imageUrl = nasResult.url;
+            description = `上传于: ${new Date().toLocaleString()}, 原文件: ${file.name}, 存储: NAS`;
+            uploadMethod = 'NAS';
+            nasSuccessCount++;
+            console.log('✅ NAS上传成功:', imageUrl);
+          } else {
+            console.log('❌ NAS上传失败，尝试本地存储:', nasResult.error);
+            // NAS失败，回退到本地存储
+            await uploadToLocal(file);
+            uploadMethod = '本地(NAS失败)';
+            localSuccessCount++;
+          }
+        } else {
+          // 使用本地存储
+          await uploadToLocal(file);
+          uploadMethod = '本地';
+          localSuccessCount++;
+        }
+
+        // 本地存储上传函数
+        async function uploadToLocal(file: File) {
+          // 检查本地存储空间
+          const { available } = checkStorageSpace();
+          if (!available) {
+            throw new Error('本地存储空间不足');
+          }
+
+          // 压缩图片
+          let compressedDataUrl: string = '';
+          let attempts = 0;
+          const maxAttempts = 3;
+          const targetSize = 300 * 1024; // 目标300KB
+          
+          while (attempts < maxAttempts) {
+            attempts++;
+            const maxWidth = attempts === 1 ? 600 : attempts === 2 ? 400 : 300;
+            const quality = attempts === 1 ? 0.7 : attempts === 2 ? 0.5 : 0.3;
+            
+            compressedDataUrl = await compressImage(file, maxWidth, quality);
+            const compressedSize = compressedDataUrl.length * 0.75;
+            
+            if (compressedSize <= targetSize || attempts === maxAttempts) {
+              break;
+            }
+          }
+
+          imageUrl = compressedDataUrl;
+          const finalSize = compressedDataUrl.length * 0.75;
+          description = `上传于: ${new Date().toLocaleString()}, 原文件: ${file.name}, 压缩后: ${(finalSize / 1024).toFixed(2)}KB`;
+        }
+
+        // 添加图片到任务
+        await addImage(task.id, { 
+          url: imageUrl, 
+          description 
+        });
+        
+        successCount++;
+        toast.success(`${file.name} 上传成功`, {
+          description: `存储方式: ${uploadMethod}`
+        });
+        
+      } catch (error) {
+        console.error('图片上传失败:', error);
+        errorCount++;
+        
+        if (error instanceof Error) {
+          toast.error(`${file.name} 上传失败`, {
+            description: error.message
+          });
+        }
       }
+    }
 
-      // 验证文件大小 (5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error(`${file.name} 文件大小超过5MB`);
-        return;
+    // 总结上传结果
+    if (successCount > 0) {
+      let summaryMessage = `成功上传 ${successCount} 张图片`;
+      let details = '';
+      
+      if (nasSuccessCount > 0) {
+        details += `NAS存储: ${nasSuccessCount}张`;
       }
+      if (localSuccessCount > 0) {
+        details += details ? `, 本地存储: ${localSuccessCount}张` : `本地存储: ${localSuccessCount}张`;
+      }
+      
+      toast.success(summaryMessage, {
+        description: details
+      });
+      
+      // 如果有本地存储，检查使用率
+      if (localSuccessCount > 0) {
+        const { usedSpace, totalSpace } = checkStorageSpace();
+        const usagePercent = ((usedSpace / totalSpace) * 100).toFixed(1);
+        
+        if (parseFloat(usagePercent) > 70) {
+          toast.warning(`本地存储使用率: ${usagePercent}%`, {
+            description: '建议配置NAS存储以获得更大空间'
+          });
+        }
+      }
+    }
+    
+    if (errorCount > 0) {
+      toast.error(`${errorCount} 张图片上传失败`);
+    }
 
-      // 创建本地预览URL
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        addImage(task.id, { url: result, description: '' });
-        toast.success(`${file.name} 上传成功`);
-      };
-      reader.readAsDataURL(file);
-    });
-
-    // 清空input值，允许重复选择同一文件
+    // 清空input值
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -231,10 +423,31 @@ export function ImageUploadManager({ task }: ImageUploadManagerProps) {
           <Badge variant="secondary" className="text-xs">
             {task.images.length}
           </Badge>
+          {task.images.length === 0 && (
+            <span className="text-xs text-muted-foreground">支持多张图片</span>
+          )}
+          {/* 存储方式指示器 */}
+          {nasConfig?.enabled ? (
+            <Badge variant="outline" className="text-xs bg-blue-50 border-blue-200 text-blue-700">
+              <Server className="h-3 w-3 mr-1" />
+              NAS存储
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs bg-amber-50 border-amber-200 text-amber-700">
+              <HardDrive className="h-3 w-3 mr-1" />
+              本地存储
+            </Badge>
+          )}
         </div>
         
         {/* 上传图片按钮 */}
-        <div>
+        <div className="flex items-center gap-2">
+          {/* 存储空间提示 */}
+          {!nasConfig?.enabled && (
+            <span className="text-xs text-muted-foreground">
+              建议配置NAS获得更大存储空间
+            </span>
+          )}
           <input
             ref={fileInputRef}
             type="file"
@@ -247,16 +460,17 @@ export function ImageUploadManager({ task }: ImageUploadManagerProps) {
             variant="outline" 
             size="sm"
             onClick={() => fileInputRef.current?.click()}
+            className="gap-1"
           >
-            <Upload className="h-4 w-4 mr-1" />
-            上传图片
+            <Upload className="h-4 w-4" />
+            {task.images.length === 0 ? '上传图片' : '添加更多'}
           </Button>
         </div>
       </div>
 
       {/* 图片网格 */}
       {task.images.length > 0 ? (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
           {task.images.map((image, index) => (
             <div key={index} className="relative group">
               <div 

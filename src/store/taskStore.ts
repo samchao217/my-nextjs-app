@@ -1,12 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Task, TaskFilter, TaskStore, TaskImage } from '@/types/task';
-import { 
-  saveTasksToSupabase, 
-  loadTasksFromSupabase, 
-  subscribeToTaskChanges,
-  isSupabaseConfigured 
-} from '@/lib/supabaseClient';
 
 // 创建一些测试任务，包括即将超期的任务
 const createTestTasks = (): Task[] => {
@@ -91,54 +85,109 @@ const createTestTasks = (): Task[] => {
 // 实时同步状态
 let realtimeSubscription: any = null;
 
+// 深度合并函数，确保数据不会丢失
+const deepMerge = (target: any, source: any): any => {
+  if (!source || typeof source !== 'object') return target;
+  if (!target || typeof target !== 'object') return source;
+
+  const result = { ...target };
+  
+  for (const key in source) {
+    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+      result[key] = deepMerge(target[key], source[key]);
+    } else if (Array.isArray(source[key])) {
+      // 对于数组，如果源数组有数据就使用源数组，否则保持目标数组
+      result[key] = source[key].length > 0 ? source[key] : (target[key] || []);
+    } else {
+      // 对于基本类型，优先使用非空的值
+      result[key] = source[key] !== null && source[key] !== undefined ? source[key] : target[key];
+    }
+  }
+  
+  return result;
+};
+
 export const useTaskStore = create<TaskStore>()(
   persist(
     (set, get) => ({
-      // 初始化时不设置默认数据，由 persist 中间件处理
-      tasks: [],
+      // 初始化时设置测试数据，persist会自动处理本地存储
+      tasks: createTestTasks(),
       filter: {},
       isLoading: false,
-      lastSync: null,
+      lastSync: new Date().toISOString(),
       warningDays: 3, // 默认3天预警
 
       // 数据同步辅助函数
       syncToDatabase: async () => {
-        if (isSupabaseConfigured()) {
-          const { tasks } = get();
-          await saveTasksToSupabase(tasks);
+        console.log('🔄 尝试同步到数据库...');
+        try {
+          // 动态导入避免 SSR 问题
+          const { saveTasksToSupabase, isSupabaseConfigured } = await import('@/lib/supabaseClient');
+          if (isSupabaseConfigured()) {
+            const { tasks } = get();
+            const success = await saveTasksToSupabase(tasks);
+            if (success) {
+              console.log('✅ 数据已同步到云端');
+            } else {
+              console.log('❌ 云端同步失败，数据已保存到本地');
+            }
+          } else {
+            console.log('📱 仅保存到本地存储');
+          }
+        } catch (error) {
+          console.error('❌ 同步过程出错:', error);
         }
       },
 
       // 从数据库加载数据
       loadFromDatabase: async () => {
-        if (isSupabaseConfigured()) {
+        console.log('🔍 从数据库加载数据...');
+        try {
           set({ isLoading: true });
-          const tasks = await loadTasksFromSupabase();
-          if (tasks) {
-            set({ 
-              tasks, 
-              lastSync: new Date().toISOString(),
-              isLoading: false 
-            });
-          } else {
-            set({ isLoading: false });
+          const { loadTasksFromSupabase, isSupabaseConfigured } = await import('@/lib/supabaseClient');
+          
+          if (isSupabaseConfigured()) {
+            const tasks = await loadTasksFromSupabase();
+            if (tasks && tasks.length > 0) {
+              set({ 
+                tasks, 
+                lastSync: new Date().toISOString(),
+                isLoading: false 
+              });
+              console.log('✅ 从云端加载了', tasks.length, '个任务');
+              return;
+            }
           }
+          
+          set({ isLoading: false });
+          console.log('📱 使用本地数据');
+        } catch (error) {
+          console.error('❌ 加载失败:', error);
+          set({ isLoading: false });
         }
       },
 
       // 启用实时同步
-      enableRealtimeSync: () => {
-        if (realtimeSubscription) {
-          realtimeSubscription.unsubscribe();
-        }
+      enableRealtimeSync: async () => {
+        try {
+          if (realtimeSubscription) {
+            realtimeSubscription.unsubscribe();
+          }
 
-        if (isSupabaseConfigured()) {
-          realtimeSubscription = subscribeToTaskChanges((tasks) => {
-            set({ 
-              tasks, 
-              lastSync: new Date().toISOString() 
+          const { subscribeToTaskChanges, isSupabaseConfigured } = await import('@/lib/supabaseClient');
+          
+          if (isSupabaseConfigured()) {
+            realtimeSubscription = subscribeToTaskChanges((tasks) => {
+              console.log('📡 收到实时更新，更新本地数据');
+              set({ 
+                tasks, 
+                lastSync: new Date().toISOString() 
+              });
             });
-          });
+            console.log('🔄 实时同步已启用');
+          }
+        } catch (error) {
+          console.error('❌ 启用实时同步失败:', error);
         }
       },
 
@@ -147,69 +196,69 @@ export const useTaskStore = create<TaskStore>()(
         if (realtimeSubscription) {
           realtimeSubscription.unsubscribe();
           realtimeSubscription = null;
+          console.log('⏹️ 实时同步已禁用');
         }
       },
 
-      setTasks: (tasks) => set({ tasks }),
+      setTasks: (tasks) => {
+        set({ 
+          tasks,
+          lastSync: new Date().toISOString() 
+        });
+      },
       
       resetToInitialData: () => {
+        const testTasks = createTestTasks();
         set({ 
-          tasks: createTestTasks(),
+          tasks: testTasks,
           lastSync: new Date().toISOString()
         });
+        // 同步到数据库
+        setTimeout(() => {
+          const { syncToDatabase } = get();
+          syncToDatabase();
+        }, 100);
       },
       
-      setWarningDays: (days) => set({ warningDays: days }),
-      
-      // 获取即将超期的任务
-      getUpcomingDeadlineTasks: () => {
-        const { tasks, warningDays } = get();
-        const now = new Date();
-        const warningDate = new Date(now.getTime() + warningDays * 24 * 60 * 60 * 1000);
-        
-        return tasks.filter(task => {
-          if (task.status === 'completed') return false;
-          const deadline = new Date(task.deadline);
-          return deadline <= warningDate && deadline >= now;
-        });
-      },
+      setFilter: (filter) => set({ filter }),
+
+      setLoading: (isLoading) => set({ isLoading }),
 
       addTask: async (taskData) => {
+        const currentTasks = get().tasks;
         const newTask: Task = {
           ...taskData,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
-        
-        set((state) => ({ 
-          tasks: [...state.tasks, newTask],
-          lastSync: new Date().toISOString()
-        }));
 
-        // 同步到数据库
-        const { syncToDatabase } = get();
-        await syncToDatabase();
+        set({ 
+          tasks: [...currentTasks, newTask],
+          lastSync: new Date().toISOString()
+        });
+
+        // 异步同步到数据库
+        setTimeout(() => {
+          const { syncToDatabase } = get();
+          syncToDatabase();
+        }, 100);
       },
 
       updateTask: async (id, updates) => {
         set((state) => ({
           tasks: state.tasks.map((task) =>
-            task.id === id 
-              ? { 
-                  ...task, 
-                  ...updates, 
-                  // 如果状态更新为返工，设置hasBeenRevised标志
-                  hasBeenRevised: updates.status === 'revision' ? true : task.hasBeenRevised,
-                  updatedAt: new Date().toISOString() 
-                }
+            task.id === id
+              ? { ...task, ...updates, updatedAt: new Date().toISOString() }
               : task
           ),
           lastSync: new Date().toISOString()
         }));
 
-        // 同步到数据库
-        const { syncToDatabase } = get();
-        await syncToDatabase();
+        // 异步同步到数据库
+        setTimeout(() => {
+          const { syncToDatabase } = get();
+          syncToDatabase();
+        }, 100);
       },
 
       deleteTask: async (id) => {
@@ -218,14 +267,28 @@ export const useTaskStore = create<TaskStore>()(
           lastSync: new Date().toISOString()
         }));
 
-        // 同步到数据库
-        const { syncToDatabase } = get();
-        await syncToDatabase();
+        // 异步同步到数据库
+        setTimeout(() => {
+          const { syncToDatabase } = get();
+          syncToDatabase();
+        }, 100);
       },
 
-      setFilter: (filter) => set({ filter }),
-      
-      setLoading: (isLoading) => set({ isLoading }),
+      // 预警系统相关
+      setWarningDays: (days) => {
+        set({ warningDays: days });
+      },
+
+      getUpcomingDeadlineTasks: () => {
+        const { tasks, warningDays } = get();
+        const now = new Date();
+        const warningDate = new Date(now.getTime() + warningDays * 24 * 60 * 60 * 1000);
+        
+        return tasks.filter((task) => {
+          const deadline = new Date(task.deadline);
+          return deadline <= warningDate && deadline > now && task.status !== 'completed';
+        });
+      },
 
       addNote: async (taskId, note) => {
         set((state) => ({
@@ -241,12 +304,14 @@ export const useTaskStore = create<TaskStore>()(
           lastSync: new Date().toISOString()
         }));
 
-        // 同步到数据库
-        const { syncToDatabase } = get();
-        await syncToDatabase();
+        // 异步同步到数据库
+        setTimeout(() => {
+          const { syncToDatabase } = get();
+          syncToDatabase();
+        }, 100);
       },
 
-      removeNote: async (taskId, noteIndex) => {
+      removeNote: async (taskId: string, noteIndex: number) => {
         set((state) => ({
           tasks: state.tasks.map((task) =>
             task.id === taskId
@@ -260,9 +325,11 @@ export const useTaskStore = create<TaskStore>()(
           lastSync: new Date().toISOString()
         }));
 
-        // 同步到数据库
-        const { syncToDatabase } = get();
-        await syncToDatabase();
+        // 异步同步到数据库
+        setTimeout(() => {
+          const { syncToDatabase } = get();
+          syncToDatabase();
+        }, 100);
       },
 
       addProcessNote: async (taskId, note) => {
@@ -279,12 +346,14 @@ export const useTaskStore = create<TaskStore>()(
           lastSync: new Date().toISOString()
         }));
 
-        // 同步到数据库
-        const { syncToDatabase } = get();
-        await syncToDatabase();
+        // 异步同步到数据库
+        setTimeout(() => {
+          const { syncToDatabase } = get();
+          syncToDatabase();
+        }, 100);
       },
 
-      removeProcessNote: async (taskId, noteIndex) => {
+      removeProcessNote: async (taskId: string, noteIndex: number) => {
         set((state) => ({
           tasks: state.tasks.map((task) =>
             task.id === taskId
@@ -298,28 +367,58 @@ export const useTaskStore = create<TaskStore>()(
           lastSync: new Date().toISOString()
         }));
 
-        // 同步到数据库
-        const { syncToDatabase } = get();
-        await syncToDatabase();
+        // 异步同步到数据库
+        setTimeout(() => {
+          const { syncToDatabase } = get();
+          syncToDatabase();
+        }, 100);
       },
 
+      // 图片管理功能
       addImage: async (taskId, image) => {
-        set((state) => ({
-          tasks: state.tasks.map((task) =>
-            task.id === taskId
-              ? { 
-                  ...task, 
-                  images: [...task.images, image],
-                  updatedAt: new Date().toISOString()
-                }
-              : task
-          ),
-          lastSync: new Date().toISOString()
-        }));
+        console.log('📸 添加图片到任务:', taskId, '当前图片数量:', get().tasks.find(t => t.id === taskId)?.images.length || 0);
+        
+        try {
+          set((state) => {
+            const updatedTasks = state.tasks.map((task) =>
+              task.id === taskId 
+                ? { 
+                    ...task, 
+                    images: [...task.images, image],
+                    updatedAt: new Date().toISOString() 
+                  }
+                : task
+            );
+            
+            const updatedTask = updatedTasks.find(t => t.id === taskId);
+            console.log('📸 更新后图片数量:', updatedTask?.images.length || 0);
+            
+            return {
+              tasks: updatedTasks,
+              lastSync: new Date().toISOString()
+            };
+          });
 
-        // 同步到数据库
-        const { syncToDatabase } = get();
-        await syncToDatabase();
+          // 异步同步到数据库
+          setTimeout(() => {
+            const { syncToDatabase } = get();
+            syncToDatabase();
+          }, 100);
+        } catch (error) {
+          console.error('❌ 图片保存失败:', error);
+          
+          // 检查是否是配额错误
+          if (error instanceof Error) {
+            if (error.message.includes('quota') || 
+                error.message.includes('QuotaExceededError') ||
+                error.name === 'QuotaExceededError' ||
+                error.message.includes('存储空间不足')) {
+              throw new Error('存储空间不足，请删除一些图片后再试');
+            }
+          }
+          
+          throw error;
+        }
       },
 
       removeImage: async (taskId, imageIndex) => {
@@ -336,9 +435,11 @@ export const useTaskStore = create<TaskStore>()(
           lastSync: new Date().toISOString()
         }));
 
-        // 同步到数据库
-        const { syncToDatabase } = get();
-        await syncToDatabase();
+        // 异步同步到数据库
+        setTimeout(() => {
+          const { syncToDatabase } = get();
+          syncToDatabase();
+        }, 100);
       },
 
       updateImages: async (taskId, images) => {
@@ -355,9 +456,11 @@ export const useTaskStore = create<TaskStore>()(
           lastSync: new Date().toISOString()
         }));
 
-        // 同步到数据库
-        const { syncToDatabase } = get();
-        await syncToDatabase();
+        // 异步同步到数据库
+        setTimeout(() => {
+          const { syncToDatabase } = get();
+          syncToDatabase();
+        }, 100);
       },
 
       updateImageDescription: async (taskId, imageIndex, description) => {
@@ -378,9 +481,11 @@ export const useTaskStore = create<TaskStore>()(
           lastSync: new Date().toISOString()
         }));
 
-        // 同步到数据库
-        const { syncToDatabase } = get();
-        await syncToDatabase();
+        // 异步同步到数据库
+        setTimeout(() => {
+          const { syncToDatabase } = get();
+          syncToDatabase();
+        }, 100);
       },
 
       filteredTasks: () => {
@@ -453,50 +558,66 @@ export const useTaskStore = create<TaskStore>()(
     }),
     {
       name: 'task-store',
-      version: 1, // 添加版本号，便于将来数据迁移
-      // 持久化配置
+      version: 2, // 增加版本号以触发重新水合
+      // 持久化配置 - 明确指定要保存的字段
       partialize: (state) => ({
         tasks: state.tasks,
         lastSync: state.lastSync,
         warningDays: state.warningDays,
       }),
-      // 数据恢复时的处理
+      
+      // 添加自定义的合并逻辑，防止数据丢失
+      merge: (persistedState, currentState) => {
+        console.log('🔄 正在合并持久化状态...');
+        
+        if (!persistedState) {
+          console.log('📝 没有持久化状态，使用当前状态');
+          return currentState;
+        }
+
+        try {
+          const persisted = persistedState as Partial<TaskStore>;
+          
+          // 深度合并状态，确保数据不丢失
+          const mergedState = deepMerge(currentState, persisted);
+          
+          // 确保关键字段存在
+          if (!mergedState.tasks || !Array.isArray(mergedState.tasks)) {
+            console.log('⚠️ 任务数据异常，使用默认数据');
+            mergedState.tasks = createTestTasks();
+          }
+
+          console.log('✅ 状态合并完成，任务数量:', mergedState.tasks.length);
+          return mergedState;
+          
+        } catch (error) {
+          console.error('❌ 状态合并失败:', error);
+          return {
+            ...currentState,
+            tasks: createTestTasks(),
+            lastSync: new Date().toISOString(),
+          };
+        }
+      },
+
+      // 水合完成后的回调
       onRehydrateStorage: () => (state) => {
         if (state) {
-          // 如果没有配置Supabase，使用测试数据
-          if (!isSupabaseConfigured()) {
-            if (!state.tasks || state.tasks.length === 0) {
-              state.tasks = createTestTasks();
-              state.lastSync = new Date().toISOString();
-            }
-          } else {
-            // 如果配置了Supabase，从数据库加载数据
-            const loadDataFromSupabase = async () => {
-              console.log('🔄 页面恢复：正在从Supabase加载数据...');
-              try {
-                const cloudTasks = await loadTasksFromSupabase();
-                if (cloudTasks && cloudTasks.length > 0) {
-                  console.log('✅ 从Supabase加载了', cloudTasks.length, '个任务');
-                  // 直接更新store，不使用set以避免触发持久化
-                  state.tasks = cloudTasks;
-                  state.lastSync = new Date().toISOString();
-                } else if (!state.tasks || state.tasks.length === 0) {
-                  console.log('⚠️ 云端无数据，使用本地数据或测试数据');
-                  state.tasks = createTestTasks();
-                  state.lastSync = new Date().toISOString();
-                }
-              } catch (error) {
-                console.error('❌ 从Supabase加载数据失败:', error);
-                if (!state.tasks || state.tasks.length === 0) {
-                  state.tasks = createTestTasks();
-                  state.lastSync = new Date().toISOString();
-                }
-              }
-            };
-            
-            // 异步加载数据
-            setTimeout(loadDataFromSupabase, 100);
+          console.log('🎉 Store 水合完成，任务数量:', state.tasks?.length || 0);
+          
+          // 确保有数据
+          if (!state.tasks || state.tasks.length === 0) {
+            console.log('📝 初始化测试数据');
+            state.tasks = createTestTasks();
+            state.lastSync = new Date().toISOString();
           }
+          
+          // 触发一次数据验证
+          setTimeout(() => {
+            if (state.syncToDatabase) {
+              state.syncToDatabase();
+            }
+          }, 2000);
         }
       },
     }

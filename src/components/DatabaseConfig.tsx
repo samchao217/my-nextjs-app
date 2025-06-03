@@ -87,36 +87,76 @@ export function DatabaseConfig({ onStorageTypeChange }: DatabaseConfigProps) {
     setIsConnecting(true);
     
     try {
+      // 临时设置配置进行测试
       setSupabaseConfig(supabaseUrl.trim(), supabaseKey.trim());
       
       // 测试连接
       const supabase = getSupabaseClient();
-      if (supabase) {
-        // 检查并创建表
-        const tableExists = await createTasksTable();
-        
-        setIsConnected(true);
-        setUseOnlineDb(true);
-        onStorageTypeChange?.(true);
-        
-        // 加载云端数据
-        await loadFromDatabase();
-        
-        // 启用实时同步
-        enableRealtimeSync();
-        
-        toast.success('Supabase连接成功！', {
-          description: tableExists ? '实时同步已启用，数据将自动同步' : '请手动创建数据表（见控制台）'
-        });
-        setIsOpen(false);
-      } else {
-        throw new Error('连接失败');
+      if (!supabase) {
+        throw new Error('无法创建Supabase客户端');
       }
-    } catch (error) {
-      console.error('Supabase连接失败:', error);
-      toast.error('连接失败，请检查配置信息');
+      
+      // 尝试简单查询来测试连接
+      console.log('🔍 测试Supabase连接...');
+      const { data, error } = await supabase.from('tasks').select('count').limit(1);
+      
+      if (error) {
+        // 如果是表不存在的错误，这也算连接成功
+        if (error.code === 'PGRST116' || error.message.includes('relation') || error.message.includes('does not exist')) {
+          console.log('📋 数据库连接成功，但需要创建tasks表');
+          toast.success('Supabase连接成功！', {
+            description: '请在数据库中创建tasks表（见控制台SQL命令）'
+          });
+          
+          // 显示创建表的SQL命令
+          console.error('📋 请在Supabase SQL编辑器中执行以下命令创建tasks表:');
+          console.error(`
+CREATE TABLE tasks (
+  id text PRIMARY KEY,
+  data jsonb NOT NULL,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+          `);
+        } else {
+          throw error;
+        }
+      } else {
+        console.log('✅ Supabase连接和表检查成功');
+        toast.success('Supabase连接成功！', {
+          description: '实时同步已启用，数据将自动同步'
+        });
+      }
+      
+      setIsConnected(true);
+      setUseOnlineDb(true);
+      onStorageTypeChange?.(true);
+      
+      // 加载云端数据
+      await loadFromDatabase();
+      
+      // 启用实时同步
+      enableRealtimeSync();
+      
+      setIsOpen(false);
+    } catch (error: any) {
+      console.error('❌ Supabase连接失败:', error);
+      
+      let errorMessage = '连接失败，请检查配置信息';
+      if (error.message?.includes('Invalid API key')) {
+        errorMessage = 'API密钥无效，请检查anon key是否正确';
+      } else if (error.message?.includes('Invalid URL')) {
+        errorMessage = 'URL格式无效，请检查项目URL是否正确';
+      } else if (error.message) {
+        errorMessage = `连接失败: ${error.message}`;
+      }
+      
+      toast.error(errorMessage);
       setIsConnected(false);
       setUseOnlineDb(false);
+      
+      // 回退配置
+      setSupabaseConfig('', '');
     } finally {
       setIsConnecting(false);
     }

@@ -129,20 +129,61 @@ export const saveTasksToSupabase = async (tasks: any[]) => {
 };
 
 export const loadTasksFromSupabase = async () => {
+  console.log('🔍 开始从Supabase加载数据...');
+  
+  // 首先检查配置
+  const { url, key } = getSupabaseConfig();
+  if (!url || !key) {
+    console.log('⚠️ Supabase未配置，跳过云端数据加载');
+    return null;
+  }
+  
   const supabase = getSupabaseClient();
-  if (!supabase) return null;
+  if (!supabase) {
+    console.error('❌ Supabase客户端创建失败');
+    return null;
+  }
 
   try {
+    console.log('📡 正在查询tasks表...');
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
       .order('updated_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Supabase查询错误:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+      
+      // 如果是表不存在的错误，给出提示
+      if (error.code === 'PGRST116' || error.message.includes('relation') || error.message.includes('does not exist')) {
+        console.error('📋 请先在Supabase中创建tasks表，SQL命令:');
+        console.error(`
+CREATE TABLE tasks (
+  id text PRIMARY KEY,
+  data jsonb NOT NULL,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+        `);
+      }
+      
+      throw error;
+    }
 
-    return data?.map(row => row.data) || [];
+    const tasks = data?.map(row => row.data) || [];
+    console.log('✅ 成功从Supabase加载', tasks.length, '个任务');
+    return tasks;
   } catch (error) {
-    console.error('从Supabase加载失败:', error);
+    console.error('❌ 从Supabase加载失败:', {
+      error: error,
+      message: error instanceof Error ? error.message : '未知错误',
+      stack: error instanceof Error ? error.stack : undefined
+    });
     return null;
   }
 };
@@ -165,12 +206,19 @@ export const subscribeToTaskChanges = (callback: (tasks: any[]) => void) => {
       },
       async (payload) => {
         console.log('📡 收到实时更新:', payload);
-        // 当数据发生变化时，重新加载所有任务
-        const tasks = await loadTasksFromSupabase();
-        if (tasks) {
-          console.log('✅ 数据已更新，任务数量:', tasks.length);
-          callback(tasks);
-        }
+        
+        // 添加延迟，避免在用户正在编辑时立即更新
+        setTimeout(async () => {
+          console.log('📡 处理实时更新，事件类型:', payload.eventType);
+          
+          // 只有在非本地操作时才更新
+          // 如果是 INSERT 或 UPDATE，检查是否是来自其他设备
+          const tasks = await loadTasksFromSupabase();
+          if (tasks) {
+            console.log('✅ 实时同步：更新了', tasks.length, '个任务');
+            callback(tasks);
+          }
+        }, 1000); // 延迟1秒，给用户操作留出时间
       }
     )
     .subscribe((status) => {

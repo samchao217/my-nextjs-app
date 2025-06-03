@@ -30,13 +30,16 @@ import {
   AlertTriangle,
   TrendingUp,
   RefreshCw,
-  Database
+  Database,
+  Plus
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { getSupabaseConfig } from '@/lib/supabaseClient';
 import { useDataRestore } from '@/hooks/useDataRestore';
+// import { StorageIndicator } from './StorageIndicator';
+import { NASConfig } from './NASConfig';
 
 export function TaskBoard() {
   const { 
@@ -46,17 +49,12 @@ export function TaskBoard() {
     getUpcomingDeadlineTasks, 
     resetToInitialData,
     loadFromDatabase,
-    enableRealtimeSync
+    enableRealtimeSync,
+    addTask
   } = useTaskStore();
-  const [isHydrated, setIsHydrated] = useState(false);
   
   // 使用数据恢复hook
-  useDataRestore();
-
-  // 等待客户端水合完成
-  useEffect(() => {
-    setIsHydrated(true);
-  }, []);
+  const { hasRestored, isHydrated } = useDataRestore();
   
   const tasks = isHydrated ? filteredTasks() : [];
   const upcomingTasks = isHydrated ? getUpcomingDeadlineTasks() : [];
@@ -96,6 +94,19 @@ export function TaskBoard() {
     upcoming: 0
   };
 
+  // 如果还没有水合完成，显示加载状态
+  if (!isHydrated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
+          <p className="text-muted-foreground">正在同步数据，请稍候...</p>
+          <p className="text-xs text-muted-foreground">初次加载可能需要几秒钟</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* 页面标题和统计 */}
@@ -104,10 +115,13 @@ export function TaskBoard() {
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight">苏琪针织-打样管理系统</h1>
             {isHydrated && (
-              <Badge variant="outline" className="text-xs bg-green-50 border-green-200 text-green-700">
-                <Database className="h-3 w-3 mr-1" />
-                已保存
-              </Badge>
+              <>
+                <Badge variant="outline" className="text-xs bg-green-50 border-green-200 text-green-700">
+                  <Database className="h-3 w-3 mr-1" />
+                  数据已同步
+                </Badge>
+                {/* <StorageIndicator /> */}
+              </>
             )}
           </div>
           <p className="text-muted-foreground">
@@ -153,11 +167,27 @@ export function TaskBoard() {
         </div>
       </div>
 
+      {/* 数据同步状态提示 */}
+      {hasRestored && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="flex items-center gap-2 text-blue-700">
+            <CheckCircle className="h-4 w-4" />
+            <span className="text-sm font-medium">数据同步完成</span>
+          </div>
+          <p className="text-xs text-blue-600 mt-1">
+            所有任务数据已成功加载，包括图片和配置信息
+          </p>
+        </div>
+      )}
+
       {/* 预警设置 */}
       <WarningSettings />
 
       {/* 数据存储设置 */}
       <DatabaseConfig />
+
+      {/* NAS配置 */}
+      <NASConfig />
 
       {/* 重要指标统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -263,6 +293,40 @@ export function TaskBoard() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              // 创建一个测试任务用于验证图片功能
+              const testTaskId = `IMG-TEST-${Date.now()}`;
+              const testTask = {
+                id: testTaskId,
+                images: [],
+                specs: {
+                  size: '图片测试',
+                  color: '测试专用',
+                  other: '⚠️ 这是图片功能测试任务，请为此任务上传多张图片来验证功能'
+                },
+                status: 'preparing' as const,
+                priority: 'normal' as const,
+                deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                notes: ['🧪 图片功能测试：', '1. 上传多张图片', '2. 刷新页面检查是否保存', '3. 在其他设备查看是否同步'],
+                processNotes: [],
+                hasBeenRevised: false,
+              };
+              
+              addTask(testTask);
+              toast.success('图片测试任务已创建！', {
+                description: '请为此任务上传多张图片来测试功能'
+              });
+            }}
+            className="text-xs gap-1"
+          >
+            <Plus className="h-3 w-3" />
+            测试图片功能
+          </Button>
+          
           <DataDebugger />
           <ExportButton tasks={tasks} variant="batch" />
           <CreateTaskDialog />
