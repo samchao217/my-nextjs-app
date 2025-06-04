@@ -14,6 +14,44 @@ const config = {
         port: '',
         pathname: '/**',
       },
+      // 阿里云OSS域名支持
+      {
+        protocol: 'https',
+        hostname: '*.oss-cn-hangzhou.aliyuncs.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.oss-cn-shanghai.aliyuncs.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.oss-cn-beijing.aliyuncs.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.oss-cn-shenzhen.aliyuncs.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.oss-cn-hongkong.aliyuncs.com',
+        port: '',
+        pathname: '/**',
+      },
+      // 通用阿里云OSS域名模式
+      {
+        protocol: 'https',
+        hostname: '*.oss-*.aliyuncs.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
 };
