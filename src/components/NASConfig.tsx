@@ -97,10 +97,41 @@ export function NASConfig({ onConfigChange }: NASConfigProps) {
     }
   }, [onConfigChange]);
 
+  // 检测配置是否发生了影响连接的关键变化
+  const hasConnectionRelatedChanges = (oldConfig: NASConfig, newConfig: NASConfig): boolean => {
+    if (oldConfig.type !== newConfig.type) return true;
+    if (oldConfig.enabled !== newConfig.enabled) return true;
+    
+    if (newConfig.type === 'aliyun-oss') {
+      return (
+        oldConfig.accessKeyId !== newConfig.accessKeyId ||
+        oldConfig.accessKeySecret !== newConfig.accessKeySecret ||
+        oldConfig.region !== newConfig.region ||
+        oldConfig.bucket !== newConfig.bucket ||
+        oldConfig.path !== newConfig.path
+      );
+    } else {
+      return (
+        oldConfig.server !== newConfig.server ||
+        oldConfig.username !== newConfig.username ||
+        oldConfig.password !== newConfig.password ||
+        oldConfig.path !== newConfig.path ||
+        oldConfig.uploadEndpoint !== newConfig.uploadEndpoint
+      );
+    }
+  };
+
   // 保存配置到localStorage
   const saveConfig = (newConfig: NASConfig) => {
-    // 当配置发生变化时，重置连接状态为未测试
-    const configWithStatus = { ...newConfig, connectionStatus: 'untested' as const };
+    // 检查是否有影响连接的关键配置变化
+    const shouldResetStatus = hasConnectionRelatedChanges(config, newConfig);
+    
+    const configWithStatus = { ...newConfig };
+    // 如果有关键变化，重置连接状态；否则保持现有状态
+    if (shouldResetStatus || !configWithStatus.connectionStatus) {
+      configWithStatus.connectionStatus = 'untested';
+    }
+    
     setConfig(configWithStatus);
     localStorage.setItem('nas-config', JSON.stringify(configWithStatus));
     onConfigChange?.(configWithStatus);
