@@ -34,7 +34,10 @@ import {
   CheckCircle, 
   XCircle, 
   Settings, 
-  HardDrive 
+  HardDrive,
+  AlertCircle,
+  Copy,
+  ExternalLink
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -52,6 +55,8 @@ export interface NASConfig {
   accessKeySecret?: string;
   region?: string;
   bucket?: string;
+  // 新增：连接状态跟踪
+  connectionStatus?: 'untested' | 'success' | 'error';
 }
 
 interface NASConfigProps {
@@ -71,7 +76,8 @@ export function NASConfig({ onConfigChange }: NASConfigProps) {
     accessKeyId: '',
     accessKeySecret: '',
     region: '',
-    bucket: ''
+    bucket: '',
+    connectionStatus: 'untested'
   });
   const [isOpen, setIsOpen] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -93,9 +99,11 @@ export function NASConfig({ onConfigChange }: NASConfigProps) {
 
   // 保存配置到localStorage
   const saveConfig = (newConfig: NASConfig) => {
-    setConfig(newConfig);
-    localStorage.setItem('nas-config', JSON.stringify(newConfig));
-    onConfigChange?.(newConfig);
+    // 当配置发生变化时，重置连接状态为未测试
+    const configWithStatus = { ...newConfig, connectionStatus: 'untested' as const };
+    setConfig(configWithStatus);
+    localStorage.setItem('nas-config', JSON.stringify(configWithStatus));
+    onConfigChange?.(configWithStatus);
     toast.success('NAS配置已保存');
   };
 
@@ -131,14 +139,25 @@ export function NASConfig({ onConfigChange }: NASConfigProps) {
       
       if (result.success) {
         setTestResult('success');
-        setConfig(prev => ({ ...prev, testImageUrl: result.url }));
+        const updatedConfig = { ...config, testImageUrl: result.url, connectionStatus: 'success' as const };
+        setConfig(updatedConfig);
+        localStorage.setItem('nas-config', JSON.stringify(updatedConfig));
+        onConfigChange?.(updatedConfig);
         toast.success('NAS连接测试成功！');
       } else {
         setTestResult('error');
+        const updatedConfig = { ...config, connectionStatus: 'error' as const };
+        setConfig(updatedConfig);
+        localStorage.setItem('nas-config', JSON.stringify(updatedConfig));
+        onConfigChange?.(updatedConfig);
         toast.error(`连接测试失败: ${result.error}`);
       }
     } catch (error) {
       setTestResult('error');
+      const updatedConfig = { ...config, connectionStatus: 'error' as const };
+      setConfig(updatedConfig);
+      localStorage.setItem('nas-config', JSON.stringify(updatedConfig));
+      onConfigChange?.(updatedConfig);
       toast.error(`连接测试失败: ${error instanceof Error ? error.message : '未知错误'}`);
     } finally {
       setIsTesting(false);
@@ -152,9 +171,23 @@ export function NASConfig({ onConfigChange }: NASConfigProps) {
           <Server className="h-4 w-4" />
           云存储配置
           {config.enabled && (
-            <Badge variant="secondary" className="text-xs">
-              <CheckCircle className="h-3 w-3 mr-1" />
-              已启用
+            <Badge variant={config.connectionStatus === 'success' ? "default" : config.connectionStatus === 'error' ? "destructive" : "secondary"} className="text-xs">
+              {config.connectionStatus === 'success' ? (
+                <>
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  连接成功
+                </>
+              ) : config.connectionStatus === 'error' ? (
+                <>
+                  <XCircle className="h-3 w-3 mr-1" />
+                  连接失败
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="h-3 w-3 mr-1" />
+                  未测试
+                </>
+              )}
             </Badge>
           )}
         </Button>
@@ -483,10 +516,48 @@ function getNASConfigGuide(type: string): string {
 - Access Key：使用RAM用户的key，避免使用主账号
 - 路径：建议使用 images/ 等有意义的前缀
 
-权限设置：
-- 存储桶权限：私有读写或公共读
-- RAM权限：PutObject, GetObject
-- 建议启用HTTPS传输`;
+⚠️ 重要权限设置：
+1. RAM用户权限（推荐方式）：
+   - 添加权限：AliyunOSSFullAccess 或自定义权限
+   - 必需权限：oss:PutObject, oss:GetObject, oss:PutObjectAcl
+
+2. 存储桶权限：
+   - 读写权限：私有（推荐）或公共读
+   - 注意：不建议设置为公共读写
+
+3. ⭐ CORS规则配置（解决XHR错误的关键）：
+   必须在OSS控制台配置以下CORS规则：
+   
+   🔧 方法一：OSS控制台配置CORS
+   - 登录阿里云OSS控制台
+   - 选择对应的Bucket
+   - 在左侧菜单选择"权限管理" > "跨域设置(CORS)"
+   - 点击"设置"按钮，添加规则：
+   
+   来源(AllowedOrigin): *
+   方法(AllowedMethod): GET, POST, PUT, DELETE, HEAD, OPTIONS
+   允许Headers(AllowedHeader): *
+   暴露Headers(ExposeHeader): ETag, x-oss-request-id
+   缓存时间(MaxAgeSeconds): 3600
+   
+   🔧 方法二：通过阿里云CLI配置：
+   下载ossutil工具，执行：
+   ossutil cors --method put oss://your-bucket-name cors-rules.json
+
+🔧 常见问题解决：
+- XHR error: 99%是CORS配置问题，按上述方法配置跨域规则
+- AccessDenied：检查RAM用户权限和bucket访问权限
+- InvalidAccessKeyId：确认AccessKey ID正确
+- SignatureDoesNotMatch：确认AccessKey Secret正确
+- NoSuchBucket：检查bucket名称和地域代码
+- 连接超时：检查网络连接和地域endpoint
+
+🚨 特别注意：
+如果仍然出现CORS错误，请确保：
+1. CORS规则中的"来源"设置为 * 或包含您的域名
+2. "方法"必须包含 PUT, OPTIONS
+3. "允许Headers"设置为 *
+4. 配置保存后等待1-2分钟生效`;
 
     case 'webdav':
       return `WebDAV配置说明：
@@ -547,50 +618,91 @@ export async function uploadToNAS(file: File, config: NASConfig): Promise<{
       return { success: false, error: '阿里云OSS配置信息不完整' };
     }
 
+    // 检查是否在浏览器环境中
+    if (typeof window === 'undefined') {
+      return { success: false, error: 'OSS上传只能在浏览器环境中使用' };
+    }
+
     try {
+      // 动态导入OSS SDK
+      const { default: OSS } = await import('ali-oss');
+      
+      // 创建OSS客户端
+      const client = new OSS({
+        region: config.region,
+        accessKeyId: config.accessKeyId,
+        accessKeySecret: config.accessKeySecret,
+        bucket: config.bucket,
+        secure: true,
+        timeout: 60000, // 60秒超时
+      });
+
       // 构建文件路径
       const fileName = `${config.path || 'images/'}${Date.now()}-${file.name}`;
       
-      // 生成签名和上传URL
-      const date = new Date().toISOString();
-      const endpoint = `https://${config.bucket}.${config.region}.aliyuncs.com`;
-      const uploadUrl = `${endpoint}/${fileName}`;
-
-      // 简化的签名实现（生产环境建议使用后端签名）
-      const formData = new FormData();
-      formData.append('key', fileName);
-      formData.append('OSSAccessKeyId', config.accessKeyId);
-      formData.append('policy', btoa(JSON.stringify({
-        expiration: new Date(Date.now() + 3600000).toISOString(),
-        conditions: [
-          ['content-length-range', 0, 52428800], // 50MB限制
-          { bucket: config.bucket },
-          { key: fileName }
-        ]
-      })));
-      formData.append('file', file);
-
-      // 使用PUT方法直接上传（简化版）
-      const response = await fetch(uploadUrl, {
-        method: 'PUT',
+      console.log('🔄 正在上传到阿里云OSS:', fileName);
+      
+      // 使用OSS SDK上传文件
+      const result = await client.put(fileName, file, {
+        mime: file.type,
         headers: {
-          'Authorization': `OSS ${config.accessKeyId}:${btoa(config.accessKeySecret)}`,
-          'Content-Type': file.type,
-          'x-oss-date': date,
+          'x-oss-acl': 'public-read', // 设置文件为公共可读
         },
-        body: file,
       });
 
-      if (!response.ok) {
-        throw new Error(`OSS上传失败: ${response.status} ${response.statusText}`);
+      console.log('✅ OSS上传成功:', result);
+      
+      if (result.name && result.url) {
+        return { success: true, url: result.url };
+      } else {
+        throw new Error('OSS上传返回结果异常');
       }
 
-      return { success: true, url: uploadUrl };
-    } catch (error) {
-      console.error('阿里云OSS上传失败:', error);
+    } catch (error: any) {
+      console.error('❌ 阿里云OSS上传失败:', error);
+      
+      // 详细的错误解析
+      let errorMessage = '阿里云OSS上传失败';
+      
+      if (error.code) {
+        switch (error.code) {
+          case 'AccessDenied':
+            errorMessage = '访问被拒绝。请检查：1) AccessKey权限 2) Bucket访问权限';
+            break;
+          case 'InvalidAccessKeyId':
+            errorMessage = 'AccessKey ID无效，请检查AccessKey配置';
+            break;
+          case 'SignatureDoesNotMatch':
+            errorMessage = 'AccessKey Secret错误，请检查配置';
+            break;
+          case 'NoSuchBucket':
+            errorMessage = `存储桶 "${config.bucket}" 不存在，请检查bucket名称和地域`;
+            break;
+          case 'RequestTimeTooSkewed':
+            errorMessage = '请求时间偏差过大，请检查系统时间';
+            break;
+          case 'Forbidden':
+            errorMessage = '权限不足。请确保：1) RAM用户有OSS操作权限 2) Bucket允许该操作';
+            break;
+          case 'NoSuchKey':
+            errorMessage = '对象不存在';
+            break;
+          default:
+            errorMessage = `OSS错误 ${error.code}: ${error.message || '未知错误'}`;
+        }
+      } else if (error.message) {
+        if (error.message.includes('Network Error') || error.message.includes('timeout')) {
+          errorMessage = '网络连接超时，请检查网络连接和endpoint配置';
+        } else if (error.message.includes('CORS')) {
+          errorMessage = 'CORS错误，请在OSS控制台配置跨域规则';
+        } else {
+          errorMessage = `连接失败: ${error.message}`;
+        }
+      }
+      
       return { 
         success: false, 
-        error: error instanceof Error ? error.message : '阿里云OSS上传失败' 
+        error: errorMessage
       };
     }
   }
