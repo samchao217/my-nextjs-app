@@ -73,6 +73,7 @@ export function ImportButton({ variant = 'merge', size = 'default' }: ImportButt
 
         const task: Task = {
           id: getColumnValue('任务编号') || `IMPORT_${Date.now()}_${i}`,
+          customerNumber: getColumnValue('客户编号') || '',
           specs: {
             size: getColumnValue('尺寸') || '',
             color: getColumnValue('颜色') || '',
@@ -238,6 +239,7 @@ export function ImportButton({ variant = 'merge', size = 'default' }: ImportButt
 
           const task: Task = {
             id: taskId,
+            customerNumber: getValue(idIndex.toString().includes('customerNumber') ? idIndex : -1) || '',
             specs: {
               size: size || '',
               color: color || '',
