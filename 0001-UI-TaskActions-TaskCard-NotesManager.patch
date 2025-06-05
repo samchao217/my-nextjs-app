@@ -1,0 +1,159 @@
+From e81b049f606d385061e6c048ef47f69d5527153c Mon Sep 17 00:00:00 2001
+From: samchao217 <samaisa@126.com>
+Date: Thu, 5 Jun 2025 23:42:22 +0800
+Subject: [PATCH] =?UTF-8?q?=F0=9F=92=84=20=E7=B2=BE=E7=A1=AE=E4=BC=98?=
+ =?UTF-8?q?=E5=8C=96UI=EF=BC=9A=E7=A7=BB=E9=99=A4TaskActions=E4=B8=AD?=
+ =?UTF-8?q?=E7=9A=84=E6=B7=BB=E5=8A=A0=E5=A4=87=E6=B3=A8=E6=8C=89=E9=92=AE?=
+ =?UTF-8?q?=20-=20=E4=BF=9D=E7=95=99TaskCard=E4=B8=AD=E5=AE=8C=E6=95=B4?=
+ =?UTF-8?q?=E7=9A=84=E5=A4=87=E6=B3=A8=E5=92=8C=E5=B7=A5=E8=89=BA=E8=AF=B4?=
+ =?UTF-8?q?=E6=98=8E=E5=8A=9F=E8=83=BD(NotesManager)=20-=20=E5=8F=AA?=
+ =?UTF-8?q?=E7=A7=BB=E9=99=A4=E6=93=8D=E4=BD=9C=E6=A0=8F=E4=B8=AD=E9=87=8D?=
+ =?UTF-8?q?=E5=A4=8D=E7=9A=84=E6=B7=BB=E5=8A=A0=E5=A4=87=E6=B3=A8=E6=8C=89?=
+ =?UTF-8?q?=E9=92=AE=EF=BC=8C=E9=81=BF=E5=85=8D=E5=8A=9F=E8=83=BD=E9=87=8D?=
+ =?UTF-8?q?=E5=A4=8D=20-=20=E4=BC=98=E5=8C=96=E7=95=8C=E9=9D=A2=E5=B8=83?=
+ =?UTF-8?q?=E5=B1=80=EF=BC=8C=E5=87=8F=E5=B0=91=E6=8C=89=E9=92=AE=E6=8B=A5?=
+ =?UTF-8?q?=E6=8C=A4=EF=BC=8C=E6=8F=90=E5=8D=87=E7=94=A8=E6=88=B7=E4=BD=93?=
+ =?UTF-8?q?=E9=AA=8C?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/components/TaskActions.tsx | 57 +---------------------------------
+ src/components/TaskCard.tsx    |  4 +++
+ 2 files changed, 5 insertions(+), 56 deletions(-)
+
+diff --git a/src/components/TaskActions.tsx b/src/components/TaskActions.tsx
+index da449f1..51e0e3d 100644
+--- a/src/components/TaskActions.tsx
++++ b/src/components/TaskActions.tsx
+@@ -7,13 +7,6 @@ import {
+   DropdownMenuTrigger,
+   DropdownMenuSeparator
+ } from '@/components/ui/dropdown-menu';
+-import { 
+-  Dialog, 
+-  DialogContent, 
+-  DialogHeader, 
+-  DialogTitle, 
+-  DialogTrigger 
+-} from '@/components/ui/dialog';
+ import { 
+   AlertDialog,
+   AlertDialogAction,
+@@ -24,18 +17,15 @@ import {
+   AlertDialogHeader,
+   AlertDialogTitle,
+ } from '@/components/ui/alert-dialog';
+-import { Textarea } from '@/components/ui/textarea';
+ import { 
+   MoreHorizontal, 
+   Play, 
+   CheckCircle, 
+   RotateCcw, 
+-  MessageSquare,
+   Edit,
+   Trash2,
+   AlertTriangle,
+   Clock,
+-  Eye,
+   ChevronDown,
+   ArrowUp,
+   ArrowDown,
+@@ -83,29 +73,18 @@ const statusTransitions = {
+ };
+ 
+ export function TaskActions({ task }: TaskActionsProps) {
+-  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+   const [editDialogOpen, setEditDialogOpen] = useState(false);
+   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+   const [passwordAction, setPasswordAction] = useState<'edit' | 'delete' | 'priority'>('edit');
+   const [pendingPriority, setPendingPriority] = useState<Task['priority'] | null>(null);
+-  const [newNote, setNewNote] = useState('');
+-  const { updateTask, addNote, deleteTask } = useTaskStore();
++  const { updateTask, deleteTask } = useTaskStore();
+ 
+   const handleStatusChange = (newStatus: Task['status']) => {
+     updateTask(task.id, { status: newStatus });
+     toast.success(`任务 ${task.id} 状态已更新为：${getStatusLabel(newStatus)}`);
+   };
+ 
+-  const handleAddNote = () => {
+-    if (newNote.trim()) {
+-      addNote(task.id, newNote.trim());
+-      setNewNote('');
+-      setNoteDialogOpen(false);
+-      toast.success('备注已添加');
+-    }
+-  };
+-
+   const getStatusLabel = (status: Task['status']) => {
+     const labels = {
+       preparing: '准备中',
+@@ -218,40 +197,6 @@ export function TaskActions({ task }: TaskActionsProps) {
+       {/* 导出任务按钮 */}
+       <ExportButton task={task} variant="single" size="sm" />
+ 
+-      {/* 添加备注按钮 */}
+-      <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
+-        <DialogTrigger asChild>
+-          <Button variant="outline" size="sm">
+-            <MessageSquare className="h-4 w-4 mr-1" />
+-            添加备注
+-          </Button>
+-        </DialogTrigger>
+-        <DialogContent>
+-          <DialogHeader>
+-            <DialogTitle>添加编织备注 - {task.id}</DialogTitle>
+-          </DialogHeader>
+-          <div className="space-y-4">
+-            <Textarea
+-              placeholder="请输入袜子编织过程备注..."
+-              value={newNote}
+-              onChange={(e) => setNewNote(e.target.value)}
+-              rows={4}
+-            />
+-            <div className="flex justify-end gap-2">
+-              <Button 
+-                variant="outline" 
+-                onClick={() => setNoteDialogOpen(false)}
+-              >
+-                取消
+-              </Button>
+-              <Button onClick={handleAddNote}>
+-                添加备注
+-              </Button>
+-            </div>
+-          </div>
+-        </DialogContent>
+-      </Dialog>
+-
+       {/* 更多操作 */}
+       <DropdownMenu>
+         <DropdownMenuTrigger asChild>
+diff --git a/src/components/TaskCard.tsx b/src/components/TaskCard.tsx
+index 38f740e..fdbbac2 100644
+--- a/src/components/TaskCard.tsx
++++ b/src/components/TaskCard.tsx
+@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
+ import { TaskStatusBadge } from './TaskStatusBadge';
+ import { PriorityBadge } from './PriorityBadge';
+ import { TaskActions } from './TaskActions';
++import { NotesManager } from './NotesManager';
+ import { ImageUploadManager } from './ImageUploadManager';
+ import { 
+   Calendar, 
+@@ -89,6 +90,9 @@ export function TaskCard({ task }: TaskCardProps) {
+           )}
+         </div>
+ 
++        {/* 备注和工艺说明 */}
++        <NotesManager task={task} />
++
+         {/* 时间信息 */}
+         <div className="text-xs text-muted-foreground space-y-1">
+           <div className="flex items-center gap-2">
+-- 
+2.39.5 (Apple Git-154)
+
