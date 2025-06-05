@@ -5,6 +5,7 @@ export interface TaskImage {
 
 export interface Task {
   id: string;          // 任务编号
+  customerNumber: string; // 客户编号
   images: TaskImage[]; // 样品图片数组
   specs: {
     size: string;      // 尺寸要求

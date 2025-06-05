@@ -471,7 +471,7 @@ export function ImageUploadManager({ task }: ImageUploadManagerProps) {
 
       {/* 图片网格 */}
       {task.images.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+        <div className="grid grid-cols-3 gap-3">
           {task.images.map((image, index) => (
             <div key={index} className="relative group">
               <div 

@@ -259,6 +259,7 @@ export const exportTaskAsHTML = (task: Task): void => {
         <div class="header">
             <h1>苏琪针织 - 打样任务详情</h1>
             <p>任务编号: <strong>${task.id}</strong></p>
+            <p>客户编号: <strong>${task.customerNumber}</strong></p>
         </div>
 
         <div class="section">
@@ -359,6 +360,7 @@ export const exportTaskAsHTML = (task: Task): void => {
 export const exportTasksAsCSV = (tasks: Task[]): void => {
   const headers = [
     '任务编号',
+    '客户编号',
     '状态',
     '优先级',
     '尺寸',
@@ -377,6 +379,7 @@ export const exportTasksAsCSV = (tasks: Task[]): void => {
     headers.join(','),
     ...tasks.map(task => [
       task.id,
+      task.customerNumber,
       formatStatus(task.status),
       formatPriority(task.priority),
       `"${task.specs.size}"`,

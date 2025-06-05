@@ -34,7 +34,12 @@ import {
   Edit,
   Trash2,
   AlertTriangle,
-  Clock
+  Clock,
+  Eye,
+  ChevronDown,
+  ArrowUp,
+  ArrowDown,
+  Flag
 } from 'lucide-react';
 import { ExportButton } from './ExportButton';
 import { toast } from 'sonner';
@@ -83,6 +88,7 @@ export function TaskActions({ task }: TaskActionsProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [passwordAction, setPasswordAction] = useState<'edit' | 'delete' | 'priority'>('edit');
+  const [pendingPriority, setPendingPriority] = useState<Task['priority'] | null>(null);
   const [newNote, setNewNote] = useState('');
   const { updateTask, addNote, deleteTask } = useTaskStore();
 
@@ -123,7 +129,8 @@ export function TaskActions({ task }: TaskActionsProps) {
     setPasswordDialogOpen(true);
   };
 
-  const handlePriorityClick = () => {
+  const handlePriorityClick = (newPriority: Task['priority']) => {
+    setPendingPriority(newPriority);
     setPasswordAction('priority');
     setPasswordDialogOpen(true);
   };
@@ -133,13 +140,7 @@ export function TaskActions({ task }: TaskActionsProps) {
       setEditDialogOpen(true);
     } else if (passwordAction === 'delete') {
       setDeleteDialogOpen(true);
-    } else if (passwordAction === 'priority') {
-      // 循环切换优先级：紧急 -> 优先 -> 正常 -> 宽松 -> 紧急
-      const priorityOrder: Task['priority'][] = ['urgent', 'high', 'normal', 'low'];
-      const currentIndex = priorityOrder.indexOf(task.priority);
-      const nextIndex = (currentIndex + 1) % priorityOrder.length;
-      const newPriority = priorityOrder[nextIndex]!;
-      
+    } else if (passwordAction === 'priority' && pendingPriority) {
       const priorityLabels = {
         urgent: '紧急',
         high: '优先', 
@@ -147,8 +148,9 @@ export function TaskActions({ task }: TaskActionsProps) {
         low: '宽松'
       };
       
-      updateTask(task.id, { priority: newPriority });
-      toast.success(`优先级已切换为：${priorityLabels[newPriority]}`);
+      updateTask(task.id, { priority: pendingPriority });
+      toast.success(`优先级已更新为：${priorityLabels[pendingPriority]}`);
+      setPendingPriority(null);
     }
   };
 
@@ -184,6 +186,34 @@ export function TaskActions({ task }: TaskActionsProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       )}
+
+      {/* 优先级切换按钮 */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm">
+            <Flag className="h-4 w-4 mr-1" />
+            优先级
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem onClick={() => handlePriorityClick('urgent')}>
+            <AlertTriangle className="h-4 w-4 mr-2 text-red-600" />
+            紧急
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => handlePriorityClick('high')}>
+            <ArrowUp className="h-4 w-4 mr-2 text-orange-600" />
+            优先
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => handlePriorityClick('normal')}>
+            <Clock className="h-4 w-4 mr-2 text-blue-600" />
+            正常
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => handlePriorityClick('low')}>
+            <ArrowDown className="h-4 w-4 mr-2 text-green-600" />
+            宽松
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {/* 导出任务按钮 */}
       <ExportButton task={task} variant="single" size="sm" />
@@ -234,10 +264,6 @@ export function TaskActions({ task }: TaskActionsProps) {
             <Edit className="h-4 w-4 mr-2" />
             编辑任务
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handlePriorityClick}>
-            <AlertTriangle className="h-4 w-4 mr-2" />
-            切换优先级
-          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem 
             onClick={handleDeleteClick}
@@ -257,13 +283,13 @@ export function TaskActions({ task }: TaskActionsProps) {
         title={
           passwordAction === 'edit' ? '编辑任务验证' : 
           passwordAction === 'delete' ? '删除任务验证' : 
-          '切换优先级验证'
+          '优先级修改验证'
         }
-        description={`请输入管理密码以${
-          passwordAction === 'edit' ? '编辑' : 
-          passwordAction === 'delete' ? '删除' : 
-          '切换优先级'
-        }任务 ${task.id}`}
+        description={
+          passwordAction === 'edit' ? `请输入管理密码以编辑任务 ${task.id}` :
+          passwordAction === 'delete' ? `请输入管理密码以删除任务 ${task.id}` :
+          `请输入管理密码以修改任务 ${task.id} 的优先级`
+        }
       />
 
       {/* 编辑任务对话框 */}

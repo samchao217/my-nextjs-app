@@ -10,7 +10,8 @@ import {
   Ruler, 
   Palette, 
   FileText, 
-  Clock
+  Clock,
+  User
 } from 'lucide-react';
 import { format, isAfter } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -27,7 +28,14 @@ export function TaskCard({ task }: TaskCardProps) {
     <Card className="h-full flex flex-col">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-semibold">{task.id}</CardTitle>
+          <div className="flex flex-col gap-1">
+            <CardTitle className="text-lg font-semibold">{task.id}</CardTitle>
+            {/* 客户编号 */}
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <User className="h-3 w-3" />
+              <span>客户编号: {task.customerNumber}</span>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <PriorityBadge priority={task.priority} />
             <TaskStatusBadge status={task.status} task={task} />
@@ -70,10 +78,14 @@ export function TaskCard({ task }: TaskCardProps) {
             </div>
           </div>
           {task.specs.other && (
-            <div className="flex items-center gap-2 text-sm">
-              <FileText className="h-4 w-4" />
-              <span className="font-medium">详细要求:</span>
-              <span className="text-muted-foreground">{task.specs.other}</span>
+            <div className="flex items-start gap-2 text-sm">
+              <FileText className="h-4 w-4 mt-0.5" />
+              <div className="flex-1">
+                <span className="font-medium">详细要求:</span>
+                <div className="mt-1 whitespace-pre-line text-muted-foreground">
+                  {task.specs.other}
+                </div>
+              </div>
             </div>
           )}
         </div>

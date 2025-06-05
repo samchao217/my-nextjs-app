@@ -34,6 +34,7 @@ export function CreateTaskDialog() {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     id: '',
+    customerNumber: '',
     size: '',
     color: '',
     other: '',
@@ -45,7 +46,7 @@ export function CreateTaskDialog() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.id || !formData.size || !formData.color || !formData.deadline) {
+    if (!formData.id || !formData.customerNumber || !formData.size || !formData.color || !formData.deadline) {
       toast.error('请填写所有必填字段');
       return;
     }
@@ -58,6 +59,7 @@ export function CreateTaskDialog() {
 
     const newTask = {
       id: formData.id,
+      customerNumber: formData.customerNumber,
       images: [],
       specs: {
         size: formData.size,
@@ -78,6 +80,7 @@ export function CreateTaskDialog() {
     // 重置表单
     setFormData({
       id: '',
+      customerNumber: '',
       size: '',
       color: '',
       other: '',
@@ -112,6 +115,20 @@ export function CreateTaskDialog() {
               value={formData.id}
               onChange={(e) => 
                 setFormData(prev => ({ ...prev, id: e.target.value }))
+              }
+            />
+          </div>
+
+          {/* 客户编号 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              客户编号 <span className="text-red-500">*</span>
+            </label>
+            <Input
+              placeholder="请输入客户编号"
+              value={formData.customerNumber}
+              onChange={(e) => 
+                setFormData(prev => ({ ...prev, customerNumber: e.target.value }))
               }
             />
           </div>

@@ -8,6 +8,7 @@ import { WarningSettings } from './WarningSettings';
 import { DatabaseConfig } from './DatabaseConfig';
 import { DataDebugger } from './DataDebugger';
 import { ExportButton } from './ExportButton';
+import { ImportButton } from './ImportButton';
 import { useTaskStore } from '@/store/taskStore';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -217,6 +218,7 @@ export function TaskBoard() {
         </div>
         <div className="flex items-center gap-2">
           <ExportButton tasks={tasks} variant="batch" />
+          <ImportButton />
           <CreateTaskDialog />
         </div>
       </div>

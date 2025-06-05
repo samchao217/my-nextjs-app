@@ -38,6 +38,7 @@ interface EditTaskDialogProps {
 export function EditTaskDialog({ open, onOpenChange, task }: EditTaskDialogProps) {
   const [formData, setFormData] = useState({
     id: '',
+    customerNumber: '',
     size: '',
     color: '',
     other: '',
@@ -52,6 +53,7 @@ export function EditTaskDialog({ open, onOpenChange, task }: EditTaskDialogProps
     if (open && task) {
       setFormData({
         id: task.id,
+        customerNumber: task.customerNumber,
         size: task.specs.size,
         color: task.specs.color,
         other: task.specs.other || '',
@@ -65,7 +67,7 @@ export function EditTaskDialog({ open, onOpenChange, task }: EditTaskDialogProps
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.id || !formData.size || !formData.color || !formData.deadline) {
+    if (!formData.id || !formData.customerNumber || !formData.size || !formData.color || !formData.deadline) {
       toast.error('请填写所有必填字段');
       return;
     }
@@ -78,6 +80,7 @@ export function EditTaskDialog({ open, onOpenChange, task }: EditTaskDialogProps
 
     const updates: Partial<Task> = {
       id: formData.id,
+      customerNumber: formData.customerNumber,
       specs: {
         size: formData.size,
         color: formData.color,
@@ -130,6 +133,20 @@ export function EditTaskDialog({ open, onOpenChange, task }: EditTaskDialogProps
               value={formData.id}
               onChange={(e) => 
                 setFormData(prev => ({ ...prev, id: e.target.value }))
+              }
+            />
+          </div>
+
+          {/* 客户编号 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              客户编号 <span className="text-red-500">*</span>
+            </label>
+            <Input
+              placeholder="请输入客户编号"
+              value={formData.customerNumber}
+              onChange={(e) => 
+                setFormData(prev => ({ ...prev, customerNumber: e.target.value }))
               }
             />
           </div>

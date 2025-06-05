@@ -13,6 +13,7 @@ const createTestTasks = (): Task[] => {
   return [
     {
       id: 'TEST001',
+      customerNumber: 'CUS001',
       images: [],
       specs: {
         size: '39-42',
@@ -30,6 +31,7 @@ const createTestTasks = (): Task[] => {
     },
     {
       id: 'TEST002',
+      customerNumber: 'CUS002',
       images: [],
       specs: {
         size: '35-38',
@@ -47,6 +49,7 @@ const createTestTasks = (): Task[] => {
     },
     {
       id: 'TEST003',
+      customerNumber: 'CUS003',
       images: [],
       specs: {
         size: '40-43',
@@ -64,6 +67,7 @@ const createTestTasks = (): Task[] => {
     },
     {
       id: 'TEST004',
+      customerNumber: 'CUS004',
       images: [],
       specs: {
         size: '36-39',
@@ -85,7 +89,7 @@ const createTestTasks = (): Task[] => {
 // 实时同步状态
 let realtimeSubscription: any = null;
 
-// 深度合并函数，确保数据不会丢失
+// 深度合并函数，确保数据不会丢失 - 改进版多设备同步合并
 const deepMerge = (target: any, source: any): any => {
   if (!source || typeof source !== 'object') return target;
   if (!target || typeof target !== 'object') return source;
@@ -95,14 +99,55 @@ const deepMerge = (target: any, source: any): any => {
   for (const key in source) {
     if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
       result[key] = deepMerge(target[key], source[key]);
+    } else if (Array.isArray(source[key]) && key === 'tasks') {
+      // 特殊处理任务数组 - 智能合并多设备数据
+      result[key] = smartMergeTasks(target[key] || [], source[key]);
     } else if (Array.isArray(source[key])) {
-      // 对于数组，如果源数组有数据就使用源数组，否则保持目标数组
+      // 对于其他数组，如果源数组有数据就使用源数组，否则保持目标数组
       result[key] = source[key].length > 0 ? source[key] : (target[key] || []);
     } else {
       // 对于基本类型，优先使用非空的值
       result[key] = source[key] !== null && source[key] !== undefined ? source[key] : target[key];
     }
   }
+  
+  return result;
+};
+
+// 智能合并任务数组 - 处理多设备同步冲突
+const smartMergeTasks = (localTasks: Task[], remoteTasks: Task[]): Task[] => {
+  const merged = new Map<string, Task>();
+  
+  // 先添加本地任务
+  localTasks.forEach(task => {
+    merged.set(task.id, task);
+  });
+  
+  // 然后处理远程任务
+  remoteTasks.forEach(remoteTask => {
+    const localTask = merged.get(remoteTask.id);
+    
+    if (!localTask) {
+      // 如果本地没有这个任务，直接添加
+      merged.set(remoteTask.id, remoteTask);
+    } else {
+      // 如果本地已有任务，比较更新时间决定使用哪个
+      const localTime = new Date(localTask.updatedAt || localTask.createdAt);
+      const remoteTime = new Date(remoteTask.updatedAt || remoteTask.createdAt);
+      
+      if (remoteTime > localTime) {
+        // 远程任务更新，使用远程版本
+        merged.set(remoteTask.id, remoteTask);
+        console.log(`🔄 任务 ${remoteTask.id} 使用远程版本 (${remoteTime.toLocaleString()})`);
+      } else {
+        // 本地任务更新或相同，保持本地版本
+        console.log(`📱 任务 ${localTask.id} 保持本地版本 (${localTime.toLocaleString()})`);
+      }
+    }
+  });
+  
+  const result = Array.from(merged.values());
+  console.log(`🔄 智能合并完成: 本地${localTasks.length}个，远程${remoteTasks.length}个，合并后${result.length}个任务`);
   
   return result;
 };
@@ -610,6 +655,22 @@ export const useTaskStore = create<TaskStore>()(
             console.log('📝 初始化测试数据');
             state.tasks = createTestTasks();
             state.lastSync = new Date().toISOString();
+          } else {
+            // 如果有数据，显示数据恢复成功提示
+            const taskCount = state.tasks.length;
+            console.log(`✅ 已恢复 ${taskCount} 个任务数据`);
+            
+            // 延迟显示toast避免与其他toast冲突
+            setTimeout(() => {
+              if (typeof window !== 'undefined' && window.document) {
+                // 动态导入toast以避免SSR问题
+                import('sonner').then(({ toast }) => {
+                  toast.success(`数据恢复成功，共 ${taskCount} 个任务`, {
+                    description: '多设备数据已智能合并，最新更新优先'
+                  });
+                });
+              }
+            }, 1500);
           }
           
           // 触发一次数据验证
