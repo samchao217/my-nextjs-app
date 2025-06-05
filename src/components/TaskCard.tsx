@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { TaskStatusBadge } from './TaskStatusBadge';
 import { PriorityBadge } from './PriorityBadge';
 import { TaskActions } from './TaskActions';
+import { NotesManager } from './NotesManager';
 import { ImageUploadManager } from './ImageUploadManager';
 import { 
   Calendar, 
@@ -88,6 +89,9 @@ export function TaskCard({ task }: TaskCardProps) {
             </div>
           )}
         </div>
+
+        {/* 备注和工艺说明 */}
+        <NotesManager task={task} />
 
         {/* 时间信息 */}
         <div className="text-xs text-muted-foreground space-y-1">

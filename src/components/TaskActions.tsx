@@ -8,13 +8,6 @@ import {
   DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
 import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogTrigger 
-} from '@/components/ui/dialog';
-import { 
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -24,18 +17,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { 
   MoreHorizontal, 
   Play, 
   CheckCircle, 
   RotateCcw, 
-  MessageSquare,
   Edit,
   Trash2,
   AlertTriangle,
   Clock,
-  Eye,
   ChevronDown,
   ArrowUp,
   ArrowDown,
@@ -83,27 +73,16 @@ const statusTransitions = {
 };
 
 export function TaskActions({ task }: TaskActionsProps) {
-  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [passwordAction, setPasswordAction] = useState<'edit' | 'delete' | 'priority'>('edit');
   const [pendingPriority, setPendingPriority] = useState<Task['priority'] | null>(null);
-  const [newNote, setNewNote] = useState('');
-  const { updateTask, addNote, deleteTask } = useTaskStore();
+  const { updateTask, deleteTask } = useTaskStore();
 
   const handleStatusChange = (newStatus: Task['status']) => {
     updateTask(task.id, { status: newStatus });
     toast.success(`任务 ${task.id} 状态已更新为：${getStatusLabel(newStatus)}`);
-  };
-
-  const handleAddNote = () => {
-    if (newNote.trim()) {
-      addNote(task.id, newNote.trim());
-      setNewNote('');
-      setNoteDialogOpen(false);
-      toast.success('备注已添加');
-    }
   };
 
   const getStatusLabel = (status: Task['status']) => {
@@ -217,40 +196,6 @@ export function TaskActions({ task }: TaskActionsProps) {
 
       {/* 导出任务按钮 */}
       <ExportButton task={task} variant="single" size="sm" />
-
-      {/* 添加备注按钮 */}
-      <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
-        <DialogTrigger asChild>
-          <Button variant="outline" size="sm">
-            <MessageSquare className="h-4 w-4 mr-1" />
-            添加备注
-          </Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>添加编织备注 - {task.id}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Textarea
-              placeholder="请输入袜子编织过程备注..."
-              value={newNote}
-              onChange={(e) => setNewNote(e.target.value)}
-              rows={4}
-            />
-            <div className="flex justify-end gap-2">
-              <Button 
-                variant="outline" 
-                onClick={() => setNoteDialogOpen(false)}
-              >
-                取消
-              </Button>
-              <Button onClick={handleAddNote}>
-                添加备注
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* 更多操作 */}
       <DropdownMenu>
