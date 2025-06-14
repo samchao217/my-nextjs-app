@@ -45,6 +45,7 @@ export interface TaskStore {
   loadFromDatabase: () => Promise<void>;
   enableRealtimeSync: () => void;
   disableRealtimeSync: () => void;
+  recoverData: () => Promise<void>; // 数据恢复方法
   
   // Actions
   addTask: (task: Omit<Task, 'createdAt' | 'updatedAt'>) => Promise<void>;

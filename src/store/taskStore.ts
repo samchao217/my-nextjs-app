@@ -2,90 +2,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Task, TaskFilter, TaskStore, TaskImage } from '@/types/task';
 
-// 创建一些测试任务，包括即将超期的任务
-const createTestTasks = (): Task[] => {
-  const now = new Date();
-  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  const dayAfterTomorrow = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
-  const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-
-  return [
-    {
-      id: 'TEST001',
-      customerNumber: 'CUS001',
-      images: [],
-      specs: {
-        size: '39-42',
-        color: '红色',
-        other: '纯棉材质'
-      },
-      status: 'sampling',
-      priority: 'urgent',
-      deadline: tomorrow.toISOString(),
-      notes: ['客户要求明天完成'],
-      processNotes: ['注意颜色匹配'],
-      createdAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-      updatedAt: now.toISOString(),
-      hasBeenRevised: false
-    },
-    {
-      id: 'TEST002',
-      customerNumber: 'CUS002',
-      images: [],
-      specs: {
-        size: '35-38',
-        color: '蓝色',
-        other: '运动款'
-      },
-      status: 'material_prep',
-      priority: 'high',
-      deadline: dayAfterTomorrow.toISOString(),
-      notes: ['需要特殊材料'],
-      processNotes: [],
-      createdAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      updatedAt: now.toISOString(),
-      hasBeenRevised: false
-    },
-    {
-      id: 'TEST003',
-      customerNumber: 'CUS003',
-      images: [],
-      specs: {
-        size: '40-43',
-        color: '黑色',
-        other: '商务款'
-      },
-      status: 'connecting',
-      priority: 'normal',
-      deadline: nextWeek.toISOString(),
-      notes: [],
-      processNotes: [],
-      createdAt: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-      updatedAt: now.toISOString(),
-      hasBeenRevised: false
-    },
-    {
-      id: 'TEST004',
-      customerNumber: 'CUS004',
-      images: [],
-      specs: {
-        size: '36-39',
-        color: '白色',
-        other: '休闲款'
-      },
-      status: 'sampling',
-      priority: 'urgent',
-      deadline: yesterday.toISOString(),
-      notes: ['已超期，需要紧急处理'],
-      processNotes: [],
-      createdAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      updatedAt: now.toISOString(),
-      hasBeenRevised: false
-    }
-  ];
-};
-
 // 实时同步状态
 let realtimeSubscription: any = null;
 
@@ -155,8 +71,8 @@ const smartMergeTasks = (localTasks: Task[], remoteTasks: Task[]): Task[] => {
 export const useTaskStore = create<TaskStore>()(
   persist(
     (set, get) => ({
-      // 初始化时设置测试数据，persist会自动处理本地存储
-      tasks: createTestTasks(),
+      // 初始化时设置空数据，persist会自动处理本地存储
+      tasks: [],
       filter: {},
       isLoading: false,
       lastSync: new Date().toISOString(),
@@ -200,15 +116,40 @@ export const useTaskStore = create<TaskStore>()(
                 isLoading: false 
               });
               console.log('✅ 从云端加载了', tasks.length, '个任务');
+              
+              // 显示成功提示
+              setTimeout(() => {
+                if (typeof window !== 'undefined' && window.document) {
+                  import('sonner').then(({ toast }) => {
+                    toast.success(`从云端加载了 ${tasks.length} 个任务`, {
+                      description: '数据同步完成'
+                    });
+                  });
+                }
+              }, 500);
               return;
+            } else {
+              console.log('📱 云端无数据，保持本地状态');
             }
+          } else {
+            console.log('📱 Supabase未配置，使用本地数据');
           }
           
           set({ isLoading: false });
-          console.log('📱 使用本地数据');
         } catch (error) {
           console.error('❌ 加载失败:', error);
           set({ isLoading: false });
+          
+          // 显示错误提示
+          setTimeout(() => {
+            if (typeof window !== 'undefined' && window.document) {
+              import('sonner').then(({ toast }) => {
+                toast.error('云端数据加载失败', {
+                  description: '请检查网络连接或Supabase配置'
+                });
+              });
+            }
+          }, 500);
         }
       },
 
@@ -224,10 +165,15 @@ export const useTaskStore = create<TaskStore>()(
           if (isSupabaseConfigured()) {
             realtimeSubscription = subscribeToTaskChanges((tasks) => {
               console.log('📡 收到实时更新，更新本地数据');
-              set({ 
-                tasks, 
-                lastSync: new Date().toISOString() 
-              });
+              if (tasks && Array.isArray(tasks)) {
+                set({ 
+                  tasks, 
+                  lastSync: new Date().toISOString() 
+                });
+                console.log('✅ 实时同步完成，任务数量:', tasks.length);
+              } else {
+                console.warn('⚠️ 收到无效的实时数据:', tasks);
+              }
             });
             console.log('🔄 实时同步已启用');
           }
@@ -253,9 +199,8 @@ export const useTaskStore = create<TaskStore>()(
       },
       
       resetToInitialData: () => {
-        const testTasks = createTestTasks();
         set({ 
-          tasks: testTasks,
+          tasks: [],
           lastSync: new Date().toISOString()
         });
         // 同步到数据库
@@ -600,6 +545,98 @@ export const useTaskStore = create<TaskStore>()(
           return true;
         });
       },
+
+      // 数据恢复功能
+      recoverData: async () => {
+        console.log('🔄 开始数据恢复...');
+        try {
+          set({ isLoading: true });
+          
+          // 首先尝试从云端加载
+          const { loadTasksFromSupabase, isSupabaseConfigured } = await import('@/lib/supabaseClient');
+          
+          if (isSupabaseConfigured()) {
+            const cloudTasks = await loadTasksFromSupabase();
+            const localTasks = get().tasks;
+            
+            if (cloudTasks && cloudTasks.length > 0) {
+              // 如果云端有数据，使用云端数据
+              set({ 
+                tasks: cloudTasks, 
+                lastSync: new Date().toISOString(),
+                isLoading: false 
+              });
+              console.log('✅ 从云端恢复数据，任务数量:', cloudTasks.length);
+              
+              setTimeout(() => {
+                if (typeof window !== 'undefined' && window.document) {
+                  import('sonner').then(({ toast }) => {
+                    toast.success(`数据恢复成功，共 ${cloudTasks.length} 个任务`, {
+                      description: '从云端恢复的数据'
+                    });
+                  });
+                }
+              }, 500);
+            } else if (localTasks && localTasks.length > 0) {
+              // 如果本地有数据但云端没有，同步到云端
+              console.log('📱 本地有数据，同步到云端');
+              const { syncToDatabase } = get();
+              await syncToDatabase();
+              set({ isLoading: false });
+              
+              setTimeout(() => {
+                if (typeof window !== 'undefined' && window.document) {
+                  import('sonner').then(({ toast }) => {
+                    toast.success(`本地数据已同步到云端，共 ${localTasks.length} 个任务`, {
+                      description: '数据备份完成'
+                    });
+                  });
+                }
+              }, 500);
+            } else {
+              // 都没有数据
+              set({ isLoading: false });
+              console.log('📝 本地和云端都没有数据');
+              
+              setTimeout(() => {
+                if (typeof window !== 'undefined' && window.document) {
+                  import('sonner').then(({ toast }) => {
+                    toast.info('没有找到可恢复的数据', {
+                      description: '请创建新的任务'
+                    });
+                  });
+                }
+              }, 500);
+            }
+          } else {
+            set({ isLoading: false });
+            console.log('📱 Supabase未配置，无法恢复数据');
+            
+            setTimeout(() => {
+              if (typeof window !== 'undefined' && window.document) {
+                import('sonner').then(({ toast }) => {
+                  toast.warning('无法恢复数据', {
+                    description: '请配置Supabase以启用云端同步'
+                  });
+                });
+              }
+            }, 500);
+          }
+        } catch (error) {
+          console.error('❌ 数据恢复失败:', error);
+          set({ isLoading: false });
+          
+          setTimeout(() => {
+            if (typeof window !== 'undefined' && window.document) {
+              import('sonner').then(({ toast }) => {
+                toast.error('数据恢复失败', {
+                  description: '请检查网络连接或联系管理员'
+                });
+              });
+            }
+          }, 500);
+        }
+      },
     }),
     {
       name: 'task-store',
@@ -628,8 +665,8 @@ export const useTaskStore = create<TaskStore>()(
           
           // 确保关键字段存在
           if (!mergedState.tasks || !Array.isArray(mergedState.tasks)) {
-            console.log('⚠️ 任务数据异常，使用默认数据');
-            mergedState.tasks = createTestTasks();
+            console.log('⚠️ 任务数据异常，使用空数组');
+            mergedState.tasks = [];
           }
 
           console.log('✅ 状态合并完成，任务数量:', mergedState.tasks.length);
@@ -639,7 +676,7 @@ export const useTaskStore = create<TaskStore>()(
           console.error('❌ 状态合并失败:', error);
           return {
             ...currentState,
-            tasks: createTestTasks(),
+            tasks: [],
             lastSync: new Date().toISOString(),
           };
         }
@@ -650,13 +687,8 @@ export const useTaskStore = create<TaskStore>()(
         if (state) {
           console.log('🎉 Store 水合完成，任务数量:', state.tasks?.length || 0);
           
-          // 确保有数据
-          if (!state.tasks || state.tasks.length === 0) {
-            console.log('📝 初始化测试数据');
-            state.tasks = createTestTasks();
-            state.lastSync = new Date().toISOString();
-          } else {
-            // 如果有数据，显示数据恢复成功提示
+          // 如果有数据，显示数据恢复成功提示
+          if (state.tasks && state.tasks.length > 0) {
             const taskCount = state.tasks.length;
             console.log(`✅ 已恢复 ${taskCount} 个任务数据`);
             
@@ -671,6 +703,14 @@ export const useTaskStore = create<TaskStore>()(
                 });
               }
             }, 1500);
+          } else {
+            console.log('📝 本地无数据，尝试从云端加载');
+            // 如果本地没有数据，尝试从云端加载
+            setTimeout(() => {
+              if (state.loadFromDatabase) {
+                state.loadFromDatabase();
+              }
+            }, 1000);
           }
           
           // 触发一次数据验证
